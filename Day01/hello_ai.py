@@ -96,9 +96,12 @@ def main():
         messages.append({"role": "user", "content": prompt})
         save_history()
 
+        # Send system prompt + last 6 messages (3 conversation turns) to avoid slowdown
+        context_messages = [messages[0]] + messages[1:][-6:]
+
         response = client.chat.completions.create(
             model=model,
-            messages=messages,
+            messages=context_messages,
             stream=True,
         )
 
@@ -107,6 +110,7 @@ def main():
         in_think_block = False
         in_action_block = False
         printed_think_header = False
+        first_token_printed = False
 
         for chunk in response:
             delta = chunk.choices[0].delta
@@ -123,6 +127,10 @@ def main():
                         print("\033[90m[Thinking: ", end="", flush=True)
                         printed_think_header = True
                     print(reasoning, end="", flush=True)
+                else:
+                    if not first_token_printed:
+                        # Show non-intrusive indicator that model is working
+                        print("\r\033[90mAI is thinking of a response...\033[0m", end="", flush=True)
                 continue
 
             content = delta.content or ""
@@ -159,6 +167,11 @@ def main():
 
             if not content:
                 continue
+
+            if not first_token_printed:
+                # Erase thinking status line and prepare clean AI prompt
+                print("\r\033[KAI: ", end="", flush=True)
+                first_token_printed = True
 
             print(content, end="", flush=True)
             full_reply += content
