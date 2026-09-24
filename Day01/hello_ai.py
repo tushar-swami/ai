@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from pathlib import Path
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -15,7 +16,13 @@ def main():
 
     DEFAULT_SYSTEM_PROMPT = os.getenv(
         "SYSTEM_PROMPT",
-        "You are a standup comedian, answer everything in a funny way. Deliver punchlines and jokes directly without explaining your thoughts or meta-monologue."
+        (
+            "You are a standup comedian speaking live on stage. "
+            "Speak directly to the audience in pure spoken dialogue. "
+            "NEVER include stage directions, narration, actions in asterisks or parentheses "
+            "(such as *(leans into mic)*, *(pauses)*, *(whispers)*, or *mimes*). "
+            "Only output the actual spoken words you would say aloud into the microphone."
+        )
     )
 
     history_file = Path(__file__).parent / "history.json"
@@ -29,6 +36,9 @@ def main():
                 messages = [{"role": "system", "content": DEFAULT_SYSTEM_PROMPT}]
             elif messages[0].get("role") != "system":
                 messages.insert(0, {"role": "system", "content": DEFAULT_SYSTEM_PROMPT})
+            else:
+                # Keep active system prompt in sync with current configuration
+                messages[0]["content"] = DEFAULT_SYSTEM_PROMPT
             print(f"Loaded {len(messages) - 1} previous messages from history.")
         except Exception:
             messages = [
@@ -95,6 +105,7 @@ def main():
         print("\nAI: ", end="", flush=True)
         full_reply = ""
         in_think_block = False
+        in_action_block = False
         printed_think_header = False
 
         for chunk in response:
@@ -132,6 +143,21 @@ def main():
                 content = content.split("</think>")[-1]
 
             if in_think_block and not show_thinking:
+                continue
+
+            # Filter stage directions / thoughts like *(leans into mic)* or *(pauses)*
+            content = re.sub(r"\*\([^\)]*\)\*", "", content)
+            if "*(" in content and ")*" not in content:
+                in_action_block = True
+                content = content.split("*(")[0]
+            elif in_action_block:
+                if ")*" in content:
+                    in_action_block = False
+                    content = content.split(")*", 1)[1]
+                else:
+                    content = ""
+
+            if not content:
                 continue
 
             print(content, end="", flush=True)
