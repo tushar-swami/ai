@@ -1,0 +1,6 @@
+This is the random file with shopping list
+
+Shopping list 
+- apple
+- banana
+- orange

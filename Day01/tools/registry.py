@@ -50,10 +50,13 @@ class ToolRegistry:
         tool_name = name or func.__name__
 
         if tool_name in self._tools:
-            raise ValueError(
-                f"Tool '{tool_name}' is already registered. "
-                "Use a unique function name or pass name= to the @tool decorator."
-            )
+            existing = self._tools[tool_name]
+            # If it's a completely different function, reject collision
+            if existing is not func and existing.__name__ != func.__name__:
+                raise ValueError(
+                    f"Tool '{tool_name}' is already registered. "
+                    "Use a unique function name or pass name= to the @tool decorator."
+                )
 
         self._tools[tool_name] = func
         self._schemas[tool_name] = {
