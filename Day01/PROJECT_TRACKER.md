@@ -121,6 +121,12 @@ Created in `Day01/knowledge/` to serve as our indexed facts database:
 ## 📜 Completed Milestones & Git History
 
 ```text
+93dbd91 fix(Day01): add get_clean_context helper to prevent orphaned tool messages in context window
+6301750 perf(Day01): add max_tokens=2048 to prevent answer truncation on long multi-pod diagnostics
+0a4d35b feat(Day01): add OOMKilled, LivenessProbe, and ImagePullBackOff diagnostic test manifests and update PROJECT_TRACKER.md
+6f06bab feat(Day01): implement autonomous multi-step agent loop in hello_ai.py and update PROJECT_TRACKER.md
+4313631 feat(Day01): add safe read-only kubectl diagnostic tool for Kubernetes pod troubleshooting
+8dbf4e7 feat(Day01): add extensible agent persona system (Smart AI, DevOps Expert) with startup menu and /role command
 c04656b feat(Day01): add dedicated EMBEDDING_BASE_URL and EMBEDDING_API_KEY support in rag.py and PROJECT_TRACKER.md
 188518d feat(Day01): add configurable dense vector RAG with nomic-embed-text, disk caching, and comparison CLI
 a7fd588 feat(Day01): add list_files tool with folder grouping and line counts, update PROJECT_TRACKER.md
