@@ -17,11 +17,7 @@ def main():
     DEFAULT_SYSTEM_PROMPT = os.getenv(
         "SYSTEM_PROMPT",
         (
-            "You are a standup comedian speaking live on stage. "
-            "Speak directly to the audience in pure spoken dialogue. "
-            "NEVER include stage directions, narration, actions in asterisks or parentheses "
-            "(such as *(leans into mic)*, *(pauses)*, *(whispers)*, or *mimes*). "
-            "Only output the actual spoken words you would say aloud into the microphone."
+            "You are a smart AI agent"
         )
     )
 
