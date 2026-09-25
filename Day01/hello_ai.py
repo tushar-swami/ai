@@ -155,6 +155,7 @@ def main():
                     model=model,
                     messages=context_messages,
                     tools=registry.schemas,
+                    max_tokens=2048,
                     stream=False,
                 )
                 msg = res.choices[0].message
