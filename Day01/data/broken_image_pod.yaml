@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: inventory-service
+  namespace: default
+  labels:
+    app: inventory-service
+spec:
+  restartPolicy: Always
+  containers:
+  - name: inventory
+    image: redis:99.9.0-alpine

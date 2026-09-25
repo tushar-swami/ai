@@ -32,8 +32,12 @@ Day01/
 ├── PROJECT_TRACKER.md        # Living project roadmap and status (this document)
 ├── .cache/                   # Persistent vector embedding disk cache (git-ignored)
 │
-├── data/                     # General user documents
-│   └── test.txt              # Shopping list sample document
+├── data/                     # General user documents & test manifests
+│   ├── test.txt              # Shopping list sample document
+│   ├── broken_pod.yaml       # CrashLoopBackOff test pod (missing /etc/config/database.json)
+│   ├── broken_oom_pod.yaml   # OOMKilled test pod (Exit Code 137, RAM exceeded)
+│   ├── broken_probe_pod.yaml # Failed Liveness Probe test pod (HTTP 404)
+│   └── broken_image_pod.yaml # ImagePullBackOff test pod (non-existent image tag)
 │
 ├── knowledge/                # Domain knowledge database (~50 lines each)
 │   ├── japan.txt             # Geography, history, economy, Washoku cuisine
@@ -188,6 +192,23 @@ python -m tools.file_tools test.txt
 
 # Test knowledge search tool:
 python -m tools.rag_tools "snow leopard camouflage"
+```
+
+### 4. Kubernetes Diagnostic Testing (DevOps Expert Agent)
+```bash
+# Scenario A: Test OOMKilled failure (Exit Code 137)
+kubectl apply -f data/broken_oom_pod.yaml
+
+# Scenario B: Test Liveness Probe failure (HTTP 404)
+kubectl apply -f data/broken_probe_pod.yaml
+
+# Scenario C: Test ImagePullBackOff (Manifest Unknown)
+kubectl apply -f data/broken_image_pod.yaml
+
+# Launch assistant and ask DevOps agent to diagnose:
+python hello_ai.py
+# Select [2] DevOps Expert Agent and prompt:
+# "Inspect my default namespace, find the failing pod, check why it is failing, and explain the fix."
 ```
 
 ---
