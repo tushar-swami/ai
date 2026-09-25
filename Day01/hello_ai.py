@@ -144,110 +144,72 @@ def main():
         # Send system prompt + last 8 messages to maintain prompt efficiency
         context_messages = [messages[0]] + messages[1:][-8:]
 
-        # Step 1: Let model decide if a tool is needed
-        try:
-            initial_res = client.chat.completions.create(
-                model=model,
-                messages=context_messages,
-                tools=registry.schemas,
-                stream=False,
-            )
-            initial_msg = initial_res.choices[0].message
-        except Exception as e:
-            print(f"\nError calling model: {e}\n")
-            continue
+        # Autonomous Multi-Step Agentic Loop (up to 5 autonomous investigation steps)
+        max_tool_steps = 5
+        step_count = 0
 
-        # Step 2: Handle tool calls if triggered
-        if initial_msg.tool_calls:
-            for tc in initial_msg.tool_calls:
-                func_name = tc.function.name
-                func_args = tc.function.arguments
-                print(f"\n\033[94m[Tool Call: {func_name}({func_args})]\033[0m", flush=True)
-                tool_output = registry.execute(func_name, func_args)
-                print(f"\033[92m[Tool Result: {tool_output}]\033[0m\n", flush=True)
+        while step_count < max_tool_steps:
+            context_messages = [messages[0]] + messages[1:][-12:]
+            try:
+                res = client.chat.completions.create(
+                    model=model,
+                    messages=context_messages,
+                    tools=registry.schemas,
+                    stream=False,
+                )
+                msg = res.choices[0].message
+            except Exception as e:
+                print(f"\nError calling model: {e}\n")
+                break
 
-                messages.append({
-                    "role": "assistant",
-                    "content": initial_msg.content or "",
-                    "tool_calls": [
-                        {
-                            "id": tc.id,
-                            "type": "function",
-                            "function": {
-                                "name": func_name,
-                                "arguments": func_args,
-                            },
-                        }
-                    ],
-                })
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tc.id,
-                    "content": tool_output,
-                })
-            save_history()
+            # If the model requested tool calls, execute them and continue investigation!
+            if msg.tool_calls:
+                step_count += 1
+                for tc in msg.tool_calls:
+                    func_name = tc.function.name
+                    func_args = tc.function.arguments
+                    print(f"\n\033[94m[Agent Investigation Step {step_count}: {func_name}({func_args})]\033[0m", flush=True)
+                    tool_output = registry.execute(func_name, func_args)
 
-            # Step 3: Stream the final synthesized answer with tool context
-            context_messages = [messages[0]] + messages[1:][-10:]
-            response = client.chat.completions.create(
-                model=model,
-                messages=context_messages,
-                stream=True,
-            )
-        else:
-            # No tools needed: print direct answer immediately
-            answer = initial_msg.content or ""
-            # Strip any residual think tags if present
-            if "<think>" in answer and "</think>" in answer:
-                answer = answer.split("</think>")[-1].strip()
+                    # Clean display for terminal UX
+                    display_out = tool_output if len(tool_output) < 350 else tool_output[:350] + "\n... [truncated for display]"
+                    print(f"\033[92m{display_out}\033[0m\n", flush=True)
 
-            print(f"\nAI: {answer}\n")
-            messages.append({"role": "assistant", "content": answer})
-            save_history()
-            continue
-
-        # Stream response when tools were called
-        print("AI: ", end="", flush=True)
-        full_reply = ""
-        in_think_block = False
-        in_action_block = False
-
-        for chunk in response:
-            delta = chunk.choices[0].delta
-            content = delta.content or ""
-            if not content:
+                    messages.append({
+                        "role": "assistant",
+                        "content": msg.content or "",
+                        "tool_calls": [
+                            {
+                                "id": tc.id,
+                                "type": "function",
+                                "function": {
+                                    "name": func_name,
+                                    "arguments": func_args,
+                                },
+                            }
+                        ],
+                    })
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc.id,
+                        "content": tool_output,
+                    })
+                save_history()
+                # Continue the loop so model can review the output and call the NEXT tool
                 continue
+            else:
+                # No more tools needed — the agent has finished investigating and wrote its answer!
+                answer = msg.content or ""
+                if "<think>" in answer and "</think>" in answer:
+                    answer = answer.split("</think>")[-1].strip()
 
-            if "<think>" in content:
-                in_think_block = True
-                content = content.replace("<think>", "")
-            if "</think>" in content:
-                in_think_block = False
-                content = content.split("</think>")[-1]
+                # Clean any residual stage directions if present
+                answer = re.sub(r"\*\([^\)]*\)\*", "", answer).strip()
 
-            if in_think_block and not show_thinking:
-                continue
-
-            content = re.sub(r"\*\([^\)]*\)\*", "", content)
-            if "*(" in content and ")*" not in content:
-                in_action_block = True
-                content = content.split("*(")[0]
-            elif in_action_block:
-                if ")*" in content:
-                    in_action_block = False
-                    content = content.split(")*", 1)[1]
-                else:
-                    content = ""
-
-            if not content:
-                continue
-
-            print(content, end="", flush=True)
-            full_reply += content
-
-        print("\n")
-        messages.append({"role": "assistant", "content": full_reply})
-        save_history()
+                print(f"\nAI: {answer}\n")
+                messages.append({"role": "assistant", "content": answer})
+                save_history()
+                break
 
 
 if __name__ == "__main__":

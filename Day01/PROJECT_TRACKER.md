@@ -134,9 +134,11 @@ ef7e6a2 feat(Day01): add pure-Python BM25 RAG system, search_knowledge tool, kno
 ```
 
 ### Key Technical Achievements:
+- **Autonomous Multi-Step Agentic Loop**: Upgraded `hello_ai.py` from single-step tool execution to an iterative multi-step reasoning loop (up to 5 sequential tool invocations). The agent can autonomously run a sequence of diagnostic tools (e.g. `get_pods` → `get_logs` → `get_events`) before producing the final synthesized root cause and remediation.
 - **Agentic 2-Step Tool Loop**: Model decides if tools are required → tool executes locally → result fed back to model for synthesized streaming answer.
 - **Tool Manager Architecture**: Scalable plugin system replacing flat dicts with decorator-based registry and dynamic auto-discovery (`pkgutil`). Adding new tools requires zero changes to `hello_ai.py`.
 - **Extensible Agent Personas (`personas.py`)**: Multi-role system with startup menu and mid-chat `/role` switching (Smart AI, DevOps Expert, Software Engineer, Custom).
+- **Safe Kubernetes Diagnostics (`kubectl_diagnose`)**: Principle of Least Privilege (PoLP) tool allowing read-only inspection (`get_pods`, `describe_pod`, `get_logs`, `get_events`) while strictly blocking all mutating/exec commands.
 - **Dual-Engine RAG**:
   - **BM25 Engine**: Custom chunker with sliding overlap and probabilistic BM25 ranking (pure Python).
   - **Vector Semantic Engine**: 768-dimensional dense vector embeddings using `nomic-embed-text:latest` (or `mxbai-embed-large:latest`) via Ollama, controlled by `EMBEDDING_MODEL` in `.env`.
