@@ -121,6 +121,7 @@ Created in `Day01/knowledge/` to serve as our indexed facts database:
 ## 📜 Completed Milestones & Git History
 
 ```text
+b71d49a feat(Day01): add autonomous investigation protocol to DevOps persona prompt
 93dbd91 fix(Day01): add get_clean_context helper to prevent orphaned tool messages in context window
 6301750 perf(Day01): add max_tokens=2048 to prevent answer truncation on long multi-pod diagnostics
 0a4d35b feat(Day01): add OOMKilled, LivenessProbe, and ImagePullBackOff diagnostic test manifests and update PROJECT_TRACKER.md
