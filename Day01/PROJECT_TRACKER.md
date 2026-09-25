@@ -24,10 +24,11 @@ The system is built as a modular, extensible AI pair-programming and reasoning a
 ```
 Day01/
 ├── hello_ai.py               # Interactive CLI chat assistant with streaming & tool dispatch
-├── rag.py                    # 100% custom-built pure Python BM25 RAG engine
-├── .env                      # Configuration (BASE_URL, API_KEY, MODEL)
+├── rag.py                    # Dual-engine RAG: BM25 keyword + nomic-embed-text vector embeddings
+├── .env                      # Configuration (BASE_URL, API_KEY, MODEL, EMBEDDING_MODEL)
 ├── history.json              # Persistent conversation memory
 ├── PROJECT_TRACKER.md        # Living project roadmap and status (this document)
+├── .cache/                   # Persistent vector embedding disk cache (git-ignored)
 │
 ├── data/                     # General user documents
 │   └── test.txt              # Shopping list sample document
@@ -81,7 +82,8 @@ Created in `Day01/knowledge/` to serve as our indexed facts database:
 ## 📜 Completed Milestones & Git History
 
 ```text
-e1f68e2 feat(Day01): add pure-Python BM25 RAG system, search_knowledge tool, knowledge base, and PROJECT_TRACKER.md
+a7fd588 feat(Day01): add list_files tool with folder grouping and line counts, update PROJECT_TRACKER.md
+ef7e6a2 feat(Day01): add pure-Python BM25 RAG system, search_knowledge tool, knowledge base, and PROJECT_TRACKER.md
 382f2d6 feat(Day01): add file reading tool with smart path resolution and workspace boundary checks
 8593476 refactor(Day01): replace flat tools.py with tool manager (registry + auto-discovery)
 9241614 feat(Day01): integrate tools into hello_ai.py with automated tool execution
@@ -97,7 +99,11 @@ e1f68e2 feat(Day01): add pure-Python BM25 RAG system, search_knowledge tool, kno
 ### Key Technical Achievements:
 - **Agentic 2-Step Tool Loop**: Model decides if tools are required → tool executes locally → result fed back to model for synthesized streaming answer.
 - **Tool Manager Architecture**: Scalable plugin system replacing flat dicts with decorator-based registry and dynamic auto-discovery (`pkgutil`). Adding new tools requires zero changes to `hello_ai.py`.
-- **Pure-Python BM25 Engine**: Custom chunker with sliding overlap and probabilistic BM25 ranking built without any external dependencies.
+- **Dual-Engine RAG**:
+  - **BM25 Engine**: Custom chunker with sliding overlap and probabilistic BM25 ranking (pure Python).
+  - **Vector Semantic Engine**: 768-dimensional dense vector embeddings using `nomic-embed-text:latest` (or `mxbai-embed-large:latest`) via Ollama, controlled by `EMBEDDING_MODEL` in `.env`.
+  - **Side-by-Side Comparison**: `--compare` CLI flag to contrast keyword matching against semantic vector similarity.
+  - **Persistent Disk Caching**: Cached under `.cache/` for instant sub-second startup on repeated queries.
 
 ---
 
@@ -113,13 +119,20 @@ python hello_ai.py
   - `/think` — Toggle showing internal reasoning traces
   - `exit` or `quit` — Leave session
 
-### 2. Standalone RAG CLI
+### 2. Standalone RAG CLI & Comparison
 ```bash
 # Query the knowledge base and get an AI-generated answer with citations:
 python rag.py "Who was the first woman to win a Nobel Prize?"
 
-# Perform raw BM25 search only:
+# Perform raw search only (uses EMBEDDING_MODEL from .env):
 python rag.py --search "Mariana Trench depth"
+
+# Compare BM25 vs nomic-embed-text side-by-side on the same query:
+python rag.py --compare "feline predators in freezing mountains"
+
+# Force a specific engine on demand:
+python rag.py --model bm25 "snow leopard habitat"
+python rag.py --model nomic-embed-text:latest "snow leopard habitat"
 ```
 
 ### 3. Tool Testing (Individual CLI)
@@ -127,7 +140,10 @@ python rag.py --search "Mariana Trench depth"
 # Test registry directly:
 python -c "from tools import registry; print(registry.tool_names)"
 
-# Test file reader:
+# List available files:
+python -m tools.file_tools list
+
+# Read specific file:
 python -m tools.file_tools test.txt
 
 # Test knowledge search tool:
@@ -138,9 +154,10 @@ python -m tools.rag_tools "snow leopard camouflage"
 
 ## 🔮 Pending Tasks & Future Roadmap
 
-- [ ] **Option B: Semantic Vector RAG**
-  - Integrate a local embedding model (e.g. `sentence-transformers` / `all-MiniLM-L6-v2` or `chromadb`).
-  - Implement hybrid search (BM25 keyword search + Dense vector semantic search with reciprocal rank fusion).
+- [x] **Option A: Pure Python BM25 RAG** (Completed: zero-dependency probabilistic ranking)
+- [x] **Option B: Semantic Vector RAG** (Completed: `nomic-embed-text:latest` via Ollama with disk caching)
+- [ ] **Hybrid Search with Reciprocal Rank Fusion (RRF)**
+  - Combine BM25 keyword rankings with dense vector cosine rankings for maximum retrieval precision.
 - [ ] **Persistent SQLite Database Memory**
   - Migrate `history.json` to an indexed SQLite database to store user sessions, timestamps, tool execution logs, and analytics.
 - [ ] **Multi-Format Document Ingestion**
