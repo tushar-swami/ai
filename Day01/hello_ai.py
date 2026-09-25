@@ -10,6 +10,11 @@ try:
 except ImportError:
     from Day01.tools import registry
 
+try:
+    from personas import prompt_select_persona, get_persona, list_personas, Persona
+except ImportError:
+    from Day01.personas import prompt_select_persona, get_persona, list_personas, Persona
+
 
 def main():
     env_path = Path(__file__).parent / ".env"
@@ -19,12 +24,9 @@ def main():
     api_key = os.getenv("API_KEY", "ollama")
     model = os.getenv("MODEL", "gemma4:e4b")
 
-    DEFAULT_SYSTEM_PROMPT = os.getenv(
-        "SYSTEM_PROMPT",
-        (
-            "You are a smart AI agent"
-        )
-    )
+    # Prompt user to choose agent role/persona at startup
+    active_persona = prompt_select_persona(default_key="general")
+    DEFAULT_SYSTEM_PROMPT = active_persona.prompt
 
     history_file = Path(__file__).parent / "history.json"
     show_thinking = False
@@ -38,7 +40,6 @@ def main():
             elif messages[0].get("role") != "system":
                 messages.insert(0, {"role": "system", "content": DEFAULT_SYSTEM_PROMPT})
             else:
-                # Keep active system prompt in sync with current configuration
                 messages[0]["content"] = DEFAULT_SYSTEM_PROMPT
             print(f"Loaded {len(messages) - 1} previous messages from history.")
         except Exception:
@@ -54,11 +55,13 @@ def main():
         with open(history_file, "w", encoding="utf-8") as f:
             json.dump(messages, f, indent=2, ensure_ascii=False)
 
-    print(f"Connecting to: {base_url}")
+    print(f"\nConnecting to: {base_url}")
     print(f"Using model:   {model}")
+    print(f"Active role:   {active_persona.name} — {active_persona.description}")
     print(f"Active tools:  {', '.join(registry.tool_names)} ({registry.count} total)")
     print("Commands:")
     print("  'exit' or 'quit'        - End session")
+    print("  '/role [name]'          - Switch persona (e.g. /role devops or /role general)")
     print("  '/clear [new persona]'  - Reset memory (optional new role)")
     print("  '/think'                - Toggle showing model thought process\n")
 
@@ -84,6 +87,46 @@ def main():
             state = "ON (thoughts will be shown)" if show_thinking else "OFF (thoughts hidden)"
             print(f"Thinking mode is now {state}.\n")
             continue
+        if prompt.lower() == "/role":
+            print(f"\nActive Persona: {active_persona.name}")
+            print(f"Description:    {active_persona.description}\n")
+            print("Available Roles:")
+            for p in list_personas():
+                marker = " (Active)" if p.key == active_persona.key else ""
+                print(f"  • /role {p.key:<10} - {p.name}{marker}")
+            print("  • /role custom     - Enter custom system prompt\n")
+            continue
+
+        if prompt.lower().startswith("/role "):
+            role_arg = prompt[6:].strip()
+            if role_arg.lower() == "custom":
+                try:
+                    custom_text = input("Enter custom system prompt: ").strip()
+                    if custom_text:
+                        active_persona = Persona(
+                            key="custom",
+                            name="Custom Persona",
+                            description="User-defined custom persona",
+                            prompt=custom_text,
+                        )
+                except (KeyboardInterrupt, EOFError):
+                    print("Role switch cancelled.\n")
+                    continue
+            else:
+                matched_persona = get_persona(role_arg)
+                if not matched_persona:
+                    print(f"Unrecognized role '{role_arg}'. Type /role to see available roles.\n")
+                    continue
+                active_persona = matched_persona
+
+            DEFAULT_SYSTEM_PROMPT = active_persona.prompt
+            messages = [{"role": "system", "content": active_persona.prompt}]
+            save_history()
+            print(f"\nSwitched to: {active_persona.name}")
+            print(f"Role: {active_persona.description}")
+            print("Conversation memory reset for new role.\n")
+            continue
+
         if prompt.lower().startswith("/clear"):
             # Check if user specified a custom persona after /clear
             parts = prompt.split(maxsplit=1)

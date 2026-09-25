@@ -10,10 +10,11 @@
 ## 📑 Table of Contents
 1. [Architecture Overview](#architecture-overview)
 2. [Active Tools Catalog (6 Tools)](#active-tools-catalog-6-tools)
-3. [Knowledge Database](#knowledge-database)
-4. [Completed Milestones & Git History](#completed-milestones)
-5. [How to Run & Test](#how-to-run--test)
-6. [Pending Tasks & Future Roadmap](#pending-tasks--future-roadmap)
+3. [Agent Personas & System Prompts](#-agent-personas--system-prompts-personaspy)
+4. [Knowledge Database](#knowledge-database)
+5. [Completed Milestones & Git History](#completed-milestones)
+6. [How to Run & Test](#how-to-run--test)
+7. [Pending Tasks & Future Roadmap](#pending-tasks--future-roadmap)
 
 ---
 
@@ -24,6 +25,7 @@ The system is built as a modular, extensible AI pair-programming and reasoning a
 ```
 Day01/
 ├── hello_ai.py               # Interactive CLI chat assistant with streaming & tool dispatch
+├── personas.py               # Extensible Persona Manager (Smart AI, DevOps Expert, Software Engineer)
 ├── rag.py                    # Dual-engine RAG: BM25 keyword + nomic-embed-text vector embeddings
 ├── .env                      # Configuration (BASE_URL, API_KEY, MODEL, EMBEDDING_BASE_URL, EMBEDDING_API_KEY, EMBEDDING_MODEL)
 ├── history.json              # Persistent conversation memory
@@ -67,6 +69,37 @@ Every tool is defined with the `@tool` decorator in `tools/*_tools.py` and is au
 
 ---
 
+## 🎭 Agent Personas & System Prompts (`personas.py`)
+
+A modular role management system that allows the AI to act as a general assistant or specialized expert.
+
+### Built-in Personas
+| Key | Role Name | Focus Area & Capabilities |
+|---|---|---|
+| `general` | **Smart AI Agent** *(Default)* | Versatile general-purpose AI assistant with access to local tools. |
+| `devops` | **DevOps Expert Agent** | Specialist in Docker, Kubernetes, CI/CD pipelines, Linux, Terraform, Prometheus/Grafana, cloud infra, and incident debugging. |
+| `coder` | **Senior Software Engineer** | Specialist in clean architecture, Python design patterns, algorithms, performance, and code reviews. |
+| `custom` | **Custom Persona** | Prompts user to enter an ad-hoc custom system prompt. |
+
+### How It Works:
+1. **Interactive Login Selection**: On launching `python hello_ai.py`, an interactive menu appears. Pressing **Enter** activates the default (`Smart AI Agent`), or press `2` for `DevOps Expert Agent`.
+2. **In-Chat Switching**:
+   - `/role` — View the currently active persona and list all available roles.
+   - `/role devops` — Instantly switch to the DevOps Expert (resets history for memory hygiene).
+   - `/role general` — Switch back to the general Smart AI Agent.
+3. **Adding New Roles in the Future**:
+   Simply add a new entry to the `PERSONAS` dictionary in [`personas.py`](file:///Users/tusharswami/Documents/ai/Day01/personas.py):
+   ```python
+   "security": Persona(
+       key="security",
+       name="Cybersecurity Analyst",
+       description="Security auditing, penetration testing & threat modeling",
+       prompt="You are a Senior Cybersecurity Analyst..."
+   )
+   ```
+
+---
+
 ## 📚 Knowledge Database
 
 Created in `Day01/knowledge/` to serve as our indexed facts database:
@@ -82,6 +115,8 @@ Created in `Day01/knowledge/` to serve as our indexed facts database:
 ## 📜 Completed Milestones & Git History
 
 ```text
+c04656b feat(Day01): add dedicated EMBEDDING_BASE_URL and EMBEDDING_API_KEY support in rag.py and PROJECT_TRACKER.md
+188518d feat(Day01): add configurable dense vector RAG with nomic-embed-text, disk caching, and comparison CLI
 a7fd588 feat(Day01): add list_files tool with folder grouping and line counts, update PROJECT_TRACKER.md
 ef7e6a2 feat(Day01): add pure-Python BM25 RAG system, search_knowledge tool, knowledge base, and PROJECT_TRACKER.md
 382f2d6 feat(Day01): add file reading tool with smart path resolution and workspace boundary checks
@@ -99,6 +134,7 @@ ef7e6a2 feat(Day01): add pure-Python BM25 RAG system, search_knowledge tool, kno
 ### Key Technical Achievements:
 - **Agentic 2-Step Tool Loop**: Model decides if tools are required → tool executes locally → result fed back to model for synthesized streaming answer.
 - **Tool Manager Architecture**: Scalable plugin system replacing flat dicts with decorator-based registry and dynamic auto-discovery (`pkgutil`). Adding new tools requires zero changes to `hello_ai.py`.
+- **Extensible Agent Personas (`personas.py`)**: Multi-role system with startup menu and mid-chat `/role` switching (Smart AI, DevOps Expert, Software Engineer, Custom).
 - **Dual-Engine RAG**:
   - **BM25 Engine**: Custom chunker with sliding overlap and probabilistic BM25 ranking (pure Python).
   - **Vector Semantic Engine**: 768-dimensional dense vector embeddings using `nomic-embed-text:latest` (or `mxbai-embed-large:latest`) via Ollama, controlled by `EMBEDDING_MODEL` in `.env`.
