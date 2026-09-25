@@ -5,6 +5,11 @@ from pathlib import Path
 from dotenv import load_dotenv
 from openai import OpenAI
 
+try:
+    from tools import TOOLS, execute_tool
+except ImportError:
+    from Day01.tools import TOOLS, execute_tool
+
 
 def main():
     env_path = Path(__file__).parent / ".env"
@@ -12,7 +17,7 @@ def main():
 
     base_url = os.getenv("BASE_URL", "http://localhost:11434/v1")
     api_key = os.getenv("API_KEY", "ollama")
-    model = os.getenv("MODEL", "qwen3:4b")
+    model = os.getenv("MODEL", "gemma4:e4b")
 
     DEFAULT_SYSTEM_PROMPT = os.getenv(
         "SYSTEM_PROMPT",
@@ -51,6 +56,7 @@ def main():
 
     print(f"Connecting to: {base_url}")
     print(f"Using model:   {model}")
+    print(f"Active tools:  get_current_datetime, roll_dice, generate_password")
     print("Commands:")
     print("  'exit' or 'quit'        - End session")
     print("  '/clear [new persona]'  - Reset memory (optional new role)")
@@ -92,53 +98,83 @@ def main():
         messages.append({"role": "user", "content": prompt})
         save_history()
 
-        # Send system prompt + last 6 messages (3 conversation turns) to avoid slowdown
-        context_messages = [messages[0]] + messages[1:][-6:]
+        # Send system prompt + last 8 messages to maintain prompt efficiency
+        context_messages = [messages[0]] + messages[1:][-8:]
 
-        response = client.chat.completions.create(
-            model=model,
-            messages=context_messages,
-            stream=True,
-        )
+        # Step 1: Let model decide if a tool is needed
+        try:
+            initial_res = client.chat.completions.create(
+                model=model,
+                messages=context_messages,
+                tools=TOOLS,
+                stream=False,
+            )
+            initial_msg = initial_res.choices[0].message
+        except Exception as e:
+            print(f"\nError calling model: {e}\n")
+            continue
 
-        print("\nAI: ", end="", flush=True)
+        # Step 2: Handle tool calls if triggered
+        if initial_msg.tool_calls:
+            for tc in initial_msg.tool_calls:
+                func_name = tc.function.name
+                func_args = tc.function.arguments
+                print(f"\n\033[94m[Tool Call: {func_name}({func_args})]\033[0m", flush=True)
+                tool_output = execute_tool(func_name, func_args)
+                print(f"\033[92m[Tool Result: {tool_output}]\033[0m\n", flush=True)
+
+                messages.append({
+                    "role": "assistant",
+                    "content": initial_msg.content or "",
+                    "tool_calls": [
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": func_name,
+                                "arguments": func_args,
+                            },
+                        }
+                    ],
+                })
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "content": tool_output,
+                })
+            save_history()
+
+            # Step 3: Stream the final synthesized answer with tool context
+            context_messages = [messages[0]] + messages[1:][-10:]
+            response = client.chat.completions.create(
+                model=model,
+                messages=context_messages,
+                stream=True,
+            )
+        else:
+            # No tools needed: print direct answer immediately
+            answer = initial_msg.content or ""
+            # Strip any residual think tags if present
+            if "<think>" in answer and "</think>" in answer:
+                answer = answer.split("</think>")[-1].strip()
+
+            print(f"\nAI: {answer}\n")
+            messages.append({"role": "assistant", "content": answer})
+            save_history()
+            continue
+
+        # Stream response when tools were called
+        print("AI: ", end="", flush=True)
         full_reply = ""
         in_think_block = False
         in_action_block = False
-        printed_think_header = False
-        first_token_printed = False
 
         for chunk in response:
             delta = chunk.choices[0].delta
-
-            # Handle reasoning/thinking stream (Ollama / Qwen3 reasoning format)
-            reasoning = getattr(delta, "reasoning", None) or getattr(delta, "reasoning_content", None)
-            if not reasoning and hasattr(delta, "model_dump"):
-                d_dict = delta.model_dump()
-                reasoning = d_dict.get("reasoning") or d_dict.get("reasoning_content")
-
-            if reasoning:
-                if show_thinking:
-                    if not printed_think_header:
-                        print("\033[90m[Thinking: ", end="", flush=True)
-                        printed_think_header = True
-                    print(reasoning, end="", flush=True)
-                else:
-                    if not first_token_printed:
-                        # Show non-intrusive indicator that model is working
-                        print("\r\033[90mAI is thinking of a response...\033[0m", end="", flush=True)
-                continue
-
             content = delta.content or ""
             if not content:
                 continue
 
-            # Close think block header if we transition to content
-            if printed_think_header:
-                print("]\033[0m\n", end="", flush=True)
-                printed_think_header = False
-
-            # Filter raw <think>...</think> tags if present in content
             if "<think>" in content:
                 in_think_block = True
                 content = content.replace("<think>", "")
@@ -149,7 +185,6 @@ def main():
             if in_think_block and not show_thinking:
                 continue
 
-            # Filter stage directions / thoughts like *(leans into mic)* or *(pauses)*
             content = re.sub(r"\*\([^\)]*\)\*", "", content)
             if "*(" in content and ")*" not in content:
                 in_action_block = True
@@ -164,19 +199,10 @@ def main():
             if not content:
                 continue
 
-            if not first_token_printed:
-                # Erase thinking status line and prepare clean AI prompt
-                print("\r\033[KAI: ", end="", flush=True)
-                first_token_printed = True
-
             print(content, end="", flush=True)
             full_reply += content
 
-        if printed_think_header:
-            print("]\033[0m\n", end="", flush=True)
-
         print("\n")
-
         messages.append({"role": "assistant", "content": full_reply})
         save_history()
 
