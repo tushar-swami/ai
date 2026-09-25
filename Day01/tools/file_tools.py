@@ -14,6 +14,62 @@ KNOWLEDGE_DIR = DAY01_DIR / "knowledge"
 
 
 @tool(
+    description=(
+        "List all available text files in the knowledge base (knowledge/) and data (data/) directories. "
+        "Use this tool whenever the user asks what files, topics, or documents exist."
+    ),
+    parameters={
+        "directory": {
+            "type": "string",
+            "enum": ["all", "knowledge", "data"],
+            "description": "Which directory to list: 'all' (default), 'knowledge', or 'data'.",
+        },
+    },
+)
+def list_files(directory: str = "all") -> str:
+    """
+    List files available in knowledge/ and data/ directories with line counts.
+
+    Args:
+        directory: 'all', 'knowledge', or 'data'.
+
+    Returns:
+        str: Clean formatted inventory of available files.
+    """
+    directory = (directory or "all").lower().strip()
+    sections: list[str] = []
+
+    if directory in ("all", "knowledge") and KNOWLEDGE_DIR.exists():
+        k_files = sorted([f for f in KNOWLEDGE_DIR.iterdir() if f.is_file() and not f.name.startswith(".")])
+        if k_files:
+            lines = ["📂 Knowledge Base Files (knowledge/):"]
+            for f in k_files:
+                try:
+                    count = len(f.read_text(encoding="utf-8", errors="replace").splitlines())
+                    lines.append(f"  • {f.name} ({count} lines)")
+                except Exception:
+                    lines.append(f"  • {f.name}")
+            sections.append("\n".join(lines))
+
+    if directory in ("all", "data") and DATA_DIR.exists():
+        d_files = sorted([f for f in DATA_DIR.iterdir() if f.is_file() and not f.name.startswith(".")])
+        if d_files:
+            lines = ["📁 Data Files (data/):"]
+            for f in d_files:
+                try:
+                    count = len(f.read_text(encoding="utf-8", errors="replace").splitlines())
+                    lines.append(f"  • {f.name} ({count} lines)")
+                except Exception:
+                    lines.append(f"  • {f.name}")
+            sections.append("\n".join(lines))
+
+    if not sections:
+        return "No files found in the specified directory."
+
+    return "\n\n".join(sections)
+
+
+@tool(
     description="Read the text content of a local file from knowledge/ or data/ (e.g. 'japan.txt', 'snow_leopard.txt', 'alien_life.txt', 'test.txt').",
     parameters={
         "file_path": {
@@ -33,8 +89,9 @@ def read_file(file_path: str, max_chars: int = 10000) -> str:
     Returns:
         str: File content or an error message if not found or inaccessible.
     """
-    if not file_path or not str(file_path).strip():
-        return "Error: No file path provided."
+    cleaned = str(file_path).strip().lower() if file_path else ""
+    if not cleaned or cleaned in ("list", "all", "ls", "dir", "files"):
+        return f"Here are the available files:\n\n{list_files()}"
 
     input_path = Path(file_path.strip())
 
@@ -89,6 +146,9 @@ def read_file(file_path: str, max_chars: int = 10000) -> str:
 
 
 if __name__ == "__main__":
-    target = sys.argv[1] if len(sys.argv) > 1 else "test.txt"
-    print(f"Reading '{target}':\n")
-    print(read_file(target))
+    target = sys.argv[1].lower() if len(sys.argv) > 1 else "list"
+    if target in ("list", "ls", "all", "dir"):
+        print(list_files())
+    else:
+        print(f"Reading '{target}':\n")
+        print(read_file(target))

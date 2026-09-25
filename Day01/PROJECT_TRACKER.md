@@ -9,7 +9,7 @@
 
 ## 📑 Table of Contents
 1. [Architecture Overview](#architecture-overview)
-2. [Active Tools Catalog (5 Tools)](#active-tools-catalog)
+2. [Active Tools Catalog (6 Tools)](#active-tools-catalog-6-tools)
 3. [Knowledge Database](#knowledge-database)
 4. [Completed Milestones & Git History](#completed-milestones)
 5. [How to Run & Test](#how-to-run--test)
@@ -51,7 +51,7 @@ Day01/
 
 ---
 
-## 🛠️ Active Tools Catalog
+## 🛠️ Active Tools Catalog (6 Tools)
 
 Every tool is defined with the `@tool` decorator in `tools/*_tools.py` and is automatically discovered and passed to the LLM on startup.
 
@@ -60,8 +60,9 @@ Every tool is defined with the `@tool` decorator in `tools/*_tools.py` and is au
 | 1 | `get_current_datetime` | `datetime_tools.py` | `format_type: 'time'\|'date'\|'all'`, `timezone_str` | Formats current date/time in `dd-mm-yyyy hh:mm:ss` format. |
 | 2 | `roll_dice` | `fun_tools.py` | `sides: integer` (default: 6) | Rolls an N-sided die and returns only the integer result. |
 | 3 | `generate_password` | `security_tools.py` | `length: integer` (12), `include_special: bool` | Generates a cryptographically secure random password. |
-| 4 | `read_file` | `file_tools.py` | `file_path: string` | Safely reads local files (searches `knowledge/`, `data/`, project dir). Restricts reads to workspace. |
-| 5 | `search_knowledge` | `rag_tools.py` | `query: string`, `top_k: integer` (3) | Searches the knowledge database using BM25 and returns top matching snippets with line citations. |
+| 4 | `list_files` | `file_tools.py` | `directory: 'all'\|'knowledge'\|'data'` | Lists all available text files with line counts across directories. |
+| 5 | `read_file` | `file_tools.py` | `file_path: string` | Safely reads local files (searches `knowledge/`, `data/`, project dir). Restricts reads to workspace. |
+| 6 | `search_knowledge` | `rag_tools.py` | `query: string`, `top_k: integer` (3) | Searches the knowledge database using BM25 and returns top matching snippets with line citations. |
 
 ---
 
