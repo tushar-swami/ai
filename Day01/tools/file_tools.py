@@ -10,14 +10,15 @@ from tools.registry import tool
 WORKSPACE_ROOT = Path(__file__).resolve().parent.parent.parent
 DAY01_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = DAY01_DIR / "data"
+KNOWLEDGE_DIR = DAY01_DIR / "knowledge"
 
 
 @tool(
-    description="Read the text content of a local file (e.g. 'test.txt' or 'data/test.txt').",
+    description="Read the text content of a local file from knowledge/ or data/ (e.g. 'japan.txt', 'snow_leopard.txt', 'alien_life.txt', 'test.txt').",
     parameters={
         "file_path": {
             "type": "string",
-            "description": "The name or path of the file to read (e.g., 'test.txt', 'data/test.txt').",
+            "description": "The name or path of the file to read (e.g., 'japan.txt', 'snow_leopard.txt', 'alien_life.txt', 'test.txt').",
         },
     },
 )
@@ -42,7 +43,8 @@ def read_file(file_path: str, max_chars: int = 10000) -> str:
     if input_path.is_absolute():
         candidates.append(input_path)
     else:
-        # Check data directory first, then Day01, workspace root, and cwd
+        # Check knowledge and data directories first, then Day01, workspace root, and cwd
+        candidates.append(KNOWLEDGE_DIR / input_path)
         candidates.append(DATA_DIR / input_path)
         candidates.append(DAY01_DIR / input_path)
         candidates.append(WORKSPACE_ROOT / input_path)
@@ -56,10 +58,16 @@ def read_file(file_path: str, max_chars: int = 10000) -> str:
 
     # If file wasn't found, return helpful diagnostic with available files
     if not resolved_path:
-        available_files: list[str] = []
+        avail: list[str] = []
+        if KNOWLEDGE_DIR.exists():
+            k_files = [f.name for f in KNOWLEDGE_DIR.iterdir() if f.is_file() and not f.name.startswith(".")]
+            if k_files:
+                avail.append(f"knowledge/: {', '.join(sorted(k_files))}")
         if DATA_DIR.exists():
-            available_files = [f.name for f in DATA_DIR.iterdir() if f.is_file() and not f.name.startswith(".")]
-        suggestions = f" Available files in data/: {', '.join(sorted(available_files))}" if available_files else ""
+            d_files = [f.name for f in DATA_DIR.iterdir() if f.is_file() and not f.name.startswith(".")]
+            if d_files:
+                avail.append(f"data/: {', '.join(sorted(d_files))}")
+        suggestions = f" Available files -> {' | '.join(avail)}" if avail else ""
         return f"Error: File '{file_path}' not found.{suggestions}"
 
     # Security check: must reside inside authorized workspace
