@@ -6,9 +6,9 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 try:
-    from tools import TOOLS, execute_tool
+    from tools import registry
 except ImportError:
-    from Day01.tools import TOOLS, execute_tool
+    from Day01.tools import registry
 
 
 def main():
@@ -56,7 +56,7 @@ def main():
 
     print(f"Connecting to: {base_url}")
     print(f"Using model:   {model}")
-    print(f"Active tools:  get_current_datetime, roll_dice, generate_password")
+    print(f"Active tools:  {', '.join(registry.tool_names)} ({registry.count} total)")
     print("Commands:")
     print("  'exit' or 'quit'        - End session")
     print("  '/clear [new persona]'  - Reset memory (optional new role)")
@@ -106,7 +106,7 @@ def main():
             initial_res = client.chat.completions.create(
                 model=model,
                 messages=context_messages,
-                tools=TOOLS,
+                tools=registry.schemas,
                 stream=False,
             )
             initial_msg = initial_res.choices[0].message
@@ -120,7 +120,7 @@ def main():
                 func_name = tc.function.name
                 func_args = tc.function.arguments
                 print(f"\n\033[94m[Tool Call: {func_name}({func_args})]\033[0m", flush=True)
-                tool_output = execute_tool(func_name, func_args)
+                tool_output = registry.execute(func_name, func_args)
                 print(f"\033[92m[Tool Result: {tool_output}]\033[0m\n", flush=True)
 
                 messages.append({
