@@ -9,7 +9,7 @@
 
 ## 📑 Table of Contents
 1. [Architecture Overview](#architecture-overview)
-2. [Active Tools Catalog (6 Tools)](#active-tools-catalog-6-tools)
+2. [Active Tools Catalog (7 Tools)](#active-tools-catalog-7-tools)
 3. [Agent Personas & System Prompts](#-agent-personas--system-prompts-personaspy)
 4. [Knowledge Database](#knowledge-database)
 5. [Completed Milestones & Git History](#completed-milestones)
@@ -48,13 +48,14 @@ Day01/
     ├── datetime_tools.py     # get_current_datetime (time / date / all)
     ├── fun_tools.py          # roll_dice (N-sided dice)
     ├── security_tools.py     # generate_password (cryptographically secure)
-    ├── file_tools.py         # read_file (safe workspace-bounded file reader)
-    └── rag_tools.py          # search_knowledge (BM25 knowledge base search)
+    ├── file_tools.py         # read_file & list_files (workspace-bounded file operations)
+    ├── rag_tools.py          # search_knowledge (BM25 & vector knowledge base search)
+    └── k8s_tools.py          # kubectl_diagnose (safe read-only Kubernetes diagnostics)
 ```
 
 ---
 
-## 🛠️ Active Tools Catalog (6 Tools)
+## 🛠️ Active Tools Catalog (7 Tools)
 
 Every tool is defined with the `@tool` decorator in `tools/*_tools.py` and is automatically discovered and passed to the LLM on startup.
 
@@ -66,6 +67,7 @@ Every tool is defined with the `@tool` decorator in `tools/*_tools.py` and is au
 | 4 | `list_files` | `file_tools.py` | `directory: 'all'\|'knowledge'\|'data'` | Lists all available text files with line counts across directories. |
 | 5 | `read_file` | `file_tools.py` | `file_path: string` | Safely reads local files (searches `knowledge/`, `data/`, project dir). Restricts reads to workspace. |
 | 6 | `search_knowledge` | `rag_tools.py` | `query: string`, `top_k: integer` (3) | Searches the knowledge database using BM25 and returns top matching snippets with line citations. |
+| 7 | `kubectl_diagnose` | `k8s_tools.py` | `action: 'get_pods'\|'describe_pod'\|'get_logs'\|'get_events'`, `pod_name`, `namespace`, `previous`, `tail` | Safe read-only Kubernetes diagnostic command runner for troubleshooting pods. |
 
 ---
 
