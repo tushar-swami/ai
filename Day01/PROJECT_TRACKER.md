@@ -25,7 +25,7 @@ The system is built as a modular, extensible AI pair-programming and reasoning a
 Day01/
 ├── hello_ai.py               # Interactive CLI chat assistant with streaming & tool dispatch
 ├── rag.py                    # Dual-engine RAG: BM25 keyword + nomic-embed-text vector embeddings
-├── .env                      # Configuration (BASE_URL, API_KEY, MODEL, EMBEDDING_MODEL)
+├── .env                      # Configuration (BASE_URL, API_KEY, MODEL, EMBEDDING_BASE_URL, EMBEDDING_API_KEY, EMBEDDING_MODEL)
 ├── history.json              # Persistent conversation memory
 ├── PROJECT_TRACKER.md        # Living project roadmap and status (this document)
 ├── .cache/                   # Persistent vector embedding disk cache (git-ignored)

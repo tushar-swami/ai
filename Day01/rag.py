@@ -213,8 +213,8 @@ class VectorEmbeddingEngine:
         self.model_name = model_name
         self.engine_label = f"Vector Semantic ({model_name})"
         self.chunks = chunks
-        self.base_url = os.getenv("BASE_URL", "http://localhost:11434/v1")
-        self.api_key = os.getenv("API_KEY", "ollama")
+        self.base_url = os.getenv("EMBEDDING_BASE_URL") or os.getenv("BASE_URL", "http://localhost:11434/v1")
+        self.api_key = os.getenv("EMBEDDING_API_KEY") or os.getenv("API_KEY", "ollama")
         self._embeddings: list[list[float]] = []
         self._load_or_compute_embeddings()
 
