@@ -16,6 +16,27 @@ except ImportError:
     from Day01.personas import prompt_select_persona, get_persona, list_personas, Persona
 
 
+def get_clean_context(messages, max_messages=12):
+    """
+    Returns a valid chat context:
+    - Retains system prompt at index 0.
+    - Slices recent messages so the window starts on a 'user' message,
+      preventing orphaned 'tool' or 'assistant' messages that break LLM templates.
+    """
+    if len(messages) <= 1:
+        return messages
+    valid_msgs = [m for m in messages[1:] if m.get("content") or m.get("tool_calls")]
+    slice_start = max(0, len(valid_msgs) - max_messages)
+    while slice_start < len(valid_msgs) and valid_msgs[slice_start].get("role") != "user":
+        slice_start += 1
+    if slice_start >= len(valid_msgs):
+        for i, m in enumerate(valid_msgs):
+            if m.get("role") == "user":
+                slice_start = i
+                break
+    return [messages[0]] + valid_msgs[slice_start:]
+
+
 def main():
     env_path = Path(__file__).parent / ".env"
     load_dotenv(dotenv_path=env_path)
@@ -141,15 +162,12 @@ def main():
         messages.append({"role": "user", "content": prompt})
         save_history()
 
-        # Send system prompt + last 8 messages to maintain prompt efficiency
-        context_messages = [messages[0]] + messages[1:][-8:]
-
         # Autonomous Multi-Step Agentic Loop (up to 5 autonomous investigation steps)
         max_tool_steps = 5
         step_count = 0
 
         while step_count < max_tool_steps:
-            context_messages = [messages[0]] + messages[1:][-12:]
+            context_messages = get_clean_context(messages, max_messages=12)
             try:
                 res = client.chat.completions.create(
                     model=model,
