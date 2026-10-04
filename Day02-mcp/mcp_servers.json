@@ -9,6 +9,11 @@
       "command": "python",
       "args": ["system_server.py"],
       "description": "Local file operations, date/time, security, and knowledge base search server (FastMCP)"
+    },
+    "github": {
+      "command": "python",
+      "args": ["github_server.py"],
+      "description": "GitHub PR and CI/CD failure inspection, log scrubbing, and diff analysis server (FastMCP)"
     }
   }
 }

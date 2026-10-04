@@ -1,0 +1,30 @@
+{
+  "total_count": 3,
+  "check_runs": [
+    {
+      "id": 111111111,
+      "name": "lint-flake8",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-04T12:00:00Z",
+      "completed_at": "2026-10-04T12:00:45Z"
+    },
+    {
+      "id": 987654321,
+      "name": "unit-tests (python 3.12)",
+      "status": "completed",
+      "conclusion": "failure",
+      "started_at": "2026-10-04T12:00:50Z",
+      "completed_at": "2026-10-04T12:02:15Z",
+      "html_url": "https://github.com/tushar-swami/ai/actions/runs/1234567/job/987654321"
+    },
+    {
+      "id": 222222222,
+      "name": "docker-build",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "started_at": "2026-10-04T12:02:16Z",
+      "completed_at": "2026-10-04T12:02:18Z"
+    }
+  ]
+}

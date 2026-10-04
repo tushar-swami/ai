@@ -9,26 +9,26 @@ This project builds an autonomous AI engineering assistant powered by **Model Co
 In Day 01, tools were imported directly into the agent's Python process. In Day 02, tools run as **independent child processes** communicating over standard JSON-RPC 2.0 (`stdio`).
 
 ```
-┌────────────────────────────────────────────────────────┐
-│               Agent Process (agent.py)                 │
-│                                                        │
-│   User Prompt ──► Ollama LLM (gemma4:e4b)              │
-│                          │                             │
-│                          ▼ (Tool Call Request)         │
-│                 MCPClientManager                       │
-└──────────────┬──────────────────────────┬──────────────┘
-               │ stdio JSON-RPC           │ stdio JSON-RPC
-               ▼                          ▼
-┌──────────────────────────────┐ ┌──────────────────────────────┐
-│  Server 1: k8s_server.py     │ │  Server 2: system_server.py  │
-│  (FastMCP Subprocess)        │ │  (FastMCP Subprocess)        │
-│                              │ │                              │
-│  • kubectl_diagnose          │ │  • read_file, list_files     │
-│                              │ │  • get_current_datetime      │
-│                              │ │  • generate_password         │
-│                              │ │  • roll_dice                 │
-│                              │ │  • search_knowledge (BM25)   │
-└──────────────────────────────┘ └──────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│                        Agent Process (agent.py)                        │
+│                                                                        │
+│   User Prompt ──────────► Ollama LLM (gemma4:e4b)                      │
+│                                   │                                    │
+│                                   ▼ (Tool Call Request)                │
+│                          MCPClientManager                              │
+└──────────────┬────────────────────┬────────────────────┬───────────────┘
+               │ stdio JSON-RPC     │ stdio JSON-RPC     │ stdio JSON-RPC
+               ▼                    ▼                    ▼
+┌─────────────────────────┐ ┌─────────────────────────┐ ┌─────────────────────────┐
+│ Server 1: k8s_server.py │ │Server 2:system_server.py│ │Server 3:github_server.py│
+│  (FastMCP Subprocess)   │ │  (FastMCP Subprocess)   │ │  (FastMCP Subprocess)   │
+│                         │ │                         │ │                         │
+│ • kubectl_diagnose      │ │ • read_file, list_files │ │ • get_pr_failed_checks  │
+│   (pods, nodes, logs,   │ │ • get_current_datetime  │ │ • get_failed_job_logs   │
+│    events, describe)    │ │ • generate_password     │ │   (regex log scrubber)  │
+│                         │ │ • roll_dice             │ │ • get_pr_diff           │
+│                         │ │ • search_knowledge      │ │   (unified code patch)  │
+└─────────────────────────┘ └─────────────────────────┘ └─────────────────────────┘
 ```
 
 ---
@@ -36,10 +36,10 @@ In Day 01, tools were imported directly into the agent's Python process. In Day 
 ## 🌟 Why MCP? (Key Architectural Advantages)
 
 1. **Zero Blast-Radius & Fault Isolation**: If an external tool hangs on a network socket, hits a C-extension memory crash, or throws an unhandled exception, `agent.py` never crashes. The client catches the error and reports it cleanly to the LLM.
-2. **Multi-Server Microservices**: Tools are separated by domain into specialized servers (`kubernetes` and `system`), preventing monolith bloat.
+2. **Multi-Server Microservices**: Tools are separated by domain into specialized micro-servers (`kubernetes`, `system`, and `github`), preventing monolith bloat.
 3. **Standardized Ecosystem**: Any MCP server (GitHub, PostgreSQL, Filesystem, Brave Search) can be added simply by listing it in `mcp_servers.json`.
-4. **Language Independence (Polyglot)**: Tools can be written in Go, Rust, or Node.js without changing a line of Python code.
-5. **Parallel Execution**: Tools requested in the same step run concurrently via `asyncio.gather()`.
+4. **Intelligent Context Scrubbing**: Massive raw CI logs (5,000+ lines) are scrubbed down to isolated ~50-line failure windows before hitting LLM context.
+5. **Parallel Execution**: Multiple tools requested in the same reasoning step run concurrently via `asyncio.gather()`.
 
 ---
 
@@ -48,13 +48,18 @@ In Day 01, tools were imported directly into the agent's Python process. In Day 
 ```
 Day02-mcp/
 ├── .env                  # Ollama endpoint & model settings
-├── mcp_servers.json      # Declarative MCP multi-server catalog
-├── k8s_server.py         # Subprocess 1: FastMCP server for Kubernetes
-├── system_server.py      # Subprocess 2: FastMCP server for files, datetime, & search
+├── mcp_servers.json      # Declarative MCP tri-server catalog (k8s, system, github)
+├── k8s_server.py         # Subprocess 1: FastMCP server for Kubernetes diagnostics
+├── system_server.py      # Subprocess 2: FastMCP server for files, datetime, & BM25 search
+├── github_server.py      # Subprocess 3: FastMCP server for PR failure & CI log diagnostics
 ├── mcp_client.py         # Dynamic MCP client bridge (spawns servers & translates schemas)
-├── agent.py              # Interactive DevOps assistant with autonomous investigation
+├── formatters.py         # Terminal Rich formatters for k8s, CI logs, diffs, and tables
+├── agent.py              # Interactive DevOps assistant with autonomous multi-step reasoning
 ├── history.json          # Persistent conversation history
-├── data/                 # Sample diagnostic pod manifests (OOMKilled, LivenessProbe, etc.)
+├── data/                 # Sample pod manifests and mock PR fixtures
+│   ├── sample_pr/        # Mock fixtures for PR #42 (checks.json, failed_test_log.txt, diff.patch)
+│   ├── broken_pod.yaml
+│   └── ...
 ├── knowledge/            # Knowledge base documents (Japan, Marie Curie, deep ocean, etc.)
 └── README.md             # This guide
 ```
@@ -89,22 +94,36 @@ print('Server Tools:', [t.name for t in tools])
 "
 ```
 
-### 3. Test the MCP Client Bridge
-Test the stdio JSON-RPC handshake and execution without launching the chat loop:
+### 3. Test GitHub CI Diagnostics Standalone
+Inspect PR #42's failed checks, scrubbed failure logs, and code diff:
 ```bash
 python -c "
 import asyncio
-from mcp_client import MCPClientManager
+from github_server import get_pr_failed_checks, get_failed_job_logs, get_pr_diff
 
 async def test():
-    async with MCPClientManager() as mcp:
-        print('Discovered MCP tools:', mcp.tool_names)
-        res = await mcp.execute('kubectl_diagnose', {'action': 'get_pods'})
-        print('Tool response:\n', res)
+    print('--- Failed Checks ---')
+    print(await get_pr_failed_checks(42))
+    print('--- Scrubbed Logs (Job 987654321) ---')
+    print(await get_failed_job_logs(987654321))
+    print('--- Code Diff ---')
+    print(await get_pr_diff(42))
 
 asyncio.run(test())
 "
 ```
+
+### 4. Interactive Autonomous In-Chat Prompts
+Launch `python agent.py` and test these scenarios:
+1. **GitHub CI/CD Failure Auto-Remediation**:
+   - *"Why did PR #42 fail and how do I fix it?"*
+   - Agent autonomously chains: `get_pr_failed_checks` ➔ `get_failed_job_logs` ➔ `get_pr_diff` ➔ synthesizes root cause & patch.
+2. **Kubernetes Cluster Health & Diagnostics**:
+   - *"Can you give summary of the pods"*
+   - *"Describe the nodes and check if there is memory pressure"*
+3. **Multi-Domain System Queries**:
+   - *"What is the current time and can you roll an 8-sided die?"*
+   - *"Search knowledge base for Mariana Trench and generate a 16-character password"*
 
 ---
 

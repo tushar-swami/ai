@@ -44,7 +44,12 @@ DEVOPS_SYSTEM_PROMPT = (
     "If any pod is not healthy (e.g. `ImagePullBackOff`, `CrashLoopBackOff`, `OOMKilled`, `Error`, or non-zero restarts), "
     "you MUST proactively and autonomously chain tools—invoking `describe_pod`, `get_logs`, or `get_events`—to discover the "
     "exact failure reason and error messages before presenting your final root-cause analysis and remediation.\n"
-    "4. Cluster-Wide Scope: When asked to inspect the cluster, check all namespaces, or if no namespace is specified, pass namespace='all' to inspect all namespaces simultaneously. When subsequently drilling down into an unhealthy pod using describe_pod or get_logs, specify that pod's exact namespace (e.g. namespace='kube-system')."
+    "4. Cluster-Wide Scope: When asked to inspect the cluster, check all namespaces, or if no namespace is specified, pass namespace='all' to inspect all namespaces simultaneously. When subsequently drilling down into an unhealthy pod using describe_pod or get_logs, specify that pod's exact namespace (e.g. namespace='kube-system').\n"
+    "5. GitHub CI/CD Remediation Protocol: When asked why a Pull Request (PR) failed or to investigate a CI check failure, you MUST autonomously chain:\n"
+    "   a. `get_pr_failed_checks(pr_number)` to discover failing jobs and their IDs.\n"
+    "   b. `get_failed_job_logs(job_id)` to extract the scrubbed failure stack trace.\n"
+    "   c. `get_pr_diff(pr_number)` to examine the code changes introduced by the PR.\n"
+    "   d. Synthesize the root cause, identify the exact broken line in the PR diff, and output a copy-pasteable code fix in unified diff format."
 )
 
 
@@ -139,15 +144,19 @@ async def main():
             step_count = 0
 
             # Detect if user asks for live cluster/system status or summary
-            live_triggers = ("pod", "pods", "node", "nodes", "cluster", "status", "summary", "health", "check", "inspect", "list", "show", "log", "logs", "event", "events", "time", "date", "password")
+            live_triggers = (
+                "pod", "pods", "node", "nodes", "cluster", "status", "summary", "health",
+                "check", "inspect", "list", "show", "log", "logs", "event", "events",
+                "time", "date", "password", "pr", "prs", "github", "pull", "ci", "failed", "fix"
+            )
             user_text_lower = user_input.lower()
             requires_live_data = any(re.search(r"\b" + re.escape(t) + r"\b", user_text_lower) for t in live_triggers)
 
             while step_count < max_tool_steps:
                 context_messages = get_clean_context(messages, max_messages=12)
 
-                # Ensure live data is queried on Step 0 rather than answering from stale memory
-                tool_choice = "required" if (step_count == 0 and requires_live_data and mcp.schemas) else "auto"
+                # Use 'auto' tool choice (Ollama compatibility layer returns None if 'required' is explicitly passed)
+                tool_choice = "auto" if mcp.schemas else None
 
                 try:
                     res = await client.chat.completions.create(

@@ -1,0 +1,42 @@
+2026-10-04T12:00:50.1234567Z ##[group]Operating System
+2026-10-04T12:00:50.1234890Z Ubuntu 22.04.4 LTS
+2026-10-04T12:00:50.1235123Z ##[endgroup]
+2026-10-04T12:00:51.2345678Z ##[group]Runner Image Provisioner
+2026-10-04T12:00:51.2345890Z 2.0.354.1
+2026-10-04T12:00:51.2346000Z ##[endgroup]
+2026-10-04T12:00:52.0000000Z Set up Python 3.12
+2026-10-04T12:00:53.0000000Z Successfully installed pip-24.0 setuptools-69.0.3 wheel-0.42.0
+2026-10-04T12:00:55.0000000Z Requirement already satisfied: pytest>=8.0.0
+2026-10-04T12:00:56.0000000Z Requirement already satisfied: iniconfig>=2.0.0
+2026-10-04T12:00:57.0000000Z Requirement already satisfied: packaging>=23.2
+2026-10-04T12:00:58.0000000Z Requirement already satisfied: pluggy>=1.4.0
+2026-10-04T12:01:00.0000000Z Running pytest test suite...
+2026-10-04T12:01:01.0000000Z ============================= test session starts ==============================
+2026-10-04T12:01:01.0000000Z platform linux -- Python 3.12.2, pytest-8.1.1, pluggy-1.4.0
+2026-10-04T12:01:01.0000000Z rootdir: /home/runner/work/ai/ai
+2026-10-04T12:01:01.0000000Z collected 8 items
+2026-10-04T12:01:02.0000000Z tests/test_auth.py ...                                                    [ 37%]
+2026-10-04T12:01:02.0000000Z tests/test_cart.py ..                                                     [ 62%]
+2026-10-04T12:01:03.0000000Z tests/test_pricing.py .F.                                                 [100%]
+2026-10-04T12:01:03.0000000Z 
+2026-10-04T12:01:03.0000000Z =================================== FAILURES ===================================
+2026-10-04T12:01:03.0000000Z ___________________________ test_calculate_discount_premium ___________________________
+2026-10-04T12:01:03.0000000Z 
+2026-10-04T12:01:03.0000000Z     def test_calculate_discount_premium():
+2026-10-04T12:01:03.0000000Z         base_price = 100.0
+2026-10-04T12:01:03.0000000Z >       discounted = calculate_discount(base_price, "PREMIUM")
+2026-10-04T12:01:03.0000000Z 
+2026-10-04T12:01:03.0000000Z tests/test_pricing.py:28: 
+2026-10-04T12:01:03.0000000Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+2026-10-04T12:01:03.0000000Z 
+2026-10-04T12:01:03.0000000Z >   assert discounted == 80.0
+2026-10-04T12:01:03.0000000Z E   AssertionError: assert 90.0 == 80.0
+2026-10-04T12:01:03.0000000Z E    +  where 90.0 = calculate_discount(100.0, 'PREMIUM')
+2026-10-04T12:01:03.0000000Z 
+2026-10-04T12:01:03.0000000Z tests/test_pricing.py:29: AssertionError
+2026-10-04T12:01:03.0000000Z =========================== short test summary info ============================
+2026-10-04T12:01:03.0000000Z FAILED tests/test_pricing.py::test_calculate_discount_premium - AssertionError: assert 90.0 == 80.0
+2026-10-04T12:01:03.0000000Z ========================= 1 failed, 7 passed in 0.42s ==========================
+2026-10-04T12:01:04.0000000Z ##[error]Process completed with exit code 1.
+2026-10-04T12:01:04.0000000Z Post job cleanup.
+2026-10-04T12:01:05.0000000Z Complete job.

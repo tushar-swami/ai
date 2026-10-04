@@ -1,0 +1,11 @@
+diff --git a/src/pricing.py b/src/pricing.py
+index 4f3b2a1..9e8d7c6 100644
+--- a/src/pricing.py
++++ b/src/pricing.py
+@@ -10,7 +10,7 @@ def calculate_discount(price: float, tier: str) -> float:
+     if tier == "VIP":
+         return price * 0.70
+     elif tier == "PREMIUM":
+-        return price * 0.80
++        return price * 0.90
+     return price

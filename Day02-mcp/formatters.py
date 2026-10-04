@@ -259,6 +259,92 @@ def format_events(output: str, namespace: str) -> None:
     )
 
 
+def format_pr_failed_checks(output: str, pr_number: int | str) -> None:
+    """Format failed GitHub check runs into a Rich Table."""
+    lines = [l.strip() for l in output.splitlines() if l.strip()]
+    if "all" in output.lower() and "passed" in output.lower():
+        console.print(Panel(f"✅ {output.strip()}", title=f"🐙 GitHub PR #{pr_number} Checks", border_style="green"))
+        return
+
+    table = Table(
+        title=f"🐙 GitHub PR #{pr_number} — Failed Checks & CI Tasks",
+        header_style="bold red",
+        border_style="red",
+    )
+    table.add_column("Job Name", style="bold white")
+    table.add_column("Job ID", style="cyan")
+    table.add_column("Conclusion", justify="center")
+
+    curr_job = {}
+    for line in lines:
+        if line.startswith("• Job Name:"):
+            if curr_job.get("name"):
+                table.add_row(curr_job["name"], curr_job.get("id", "N/A"), "[bold red on black] FAILED [/bold red on black]")
+            curr_job = {"name": line.split(":", 1)[1].strip()}
+        elif line.startswith("Job ID:"):
+            curr_job["id"] = line.split(":", 1)[1].strip()
+        elif line.startswith("Conclusion:"):
+            curr_job["conclusion"] = line.split(":", 1)[1].strip()
+
+    if curr_job.get("name"):
+        table.add_row(curr_job["name"], curr_job.get("id", "N/A"), "[bold red on black] FAILED [/bold red on black]")
+
+    console.print(table)
+
+
+def format_job_logs(output: str, job_id: int | str) -> None:
+    """Format scrubbed CI failure logs with syntax highlighting for stack traces."""
+    lines = output.splitlines()
+    styled_lines = []
+    for line in lines:
+        line_lower = line.lower()
+        if any(err in line_lower for err in ("fail", "error", "assertionerror", "traceback")):
+            styled_lines.append(f"[bold red]{line}[/bold red]")
+        elif line.startswith("=== Extracted"):
+            styled_lines.append(f"[bold yellow]{line}[/bold yellow]")
+        elif ">" in line and ("assert" in line or "def test" in line):
+            styled_lines.append(f"[bold cyan]{line}[/bold cyan]")
+        else:
+            styled_lines.append(f"[dim white]{line}[/dim white]")
+
+    console.print(
+        Panel(
+            "\n".join(styled_lines),
+            title=f"📋 [bold red]Scrubbed CI Failure Log: Job #{job_id}[/bold red]",
+            border_style="red",
+            expand=False,
+        )
+    )
+
+
+def format_pr_diff(output: str, pr_number: int | str) -> None:
+    """Format unified PR diff with colored additions and deletions."""
+    lines = output.splitlines()
+    styled_lines = []
+    for line in lines:
+        if line.startswith("+++") or line.startswith("---"):
+            styled_lines.append(f"[bold white]{line}[/bold white]")
+        elif line.startswith("@@"):
+            styled_lines.append(f"[cyan]{line}[/cyan]")
+        elif line.startswith("+"):
+            styled_lines.append(f"[bold green]{line}[/bold green]")
+        elif line.startswith("-"):
+            styled_lines.append(f"[bold red]{line}[/bold red]")
+        elif line.startswith("diff --git"):
+            styled_lines.append(f"[bold yellow]\n{line}[/bold yellow]")
+        else:
+            styled_lines.append(f"[dim]{line}[/dim]")
+
+    console.print(
+        Panel(
+            "\n".join(styled_lines[:50]),
+            title=f"🔀 [bold green]PR #{pr_number} Unified Code Diff[/bold green]",
+            border_style="green",
+            expand=False,
+        )
+    )
+
+
 def render_mcp_output(func_name: str, func_args: dict | str, output: str) -> None:
     """Dispatcher to render clean, readable terminal UI for any MCP tool output."""
     if isinstance(func_args, str):
@@ -325,6 +411,23 @@ def render_mcp_output(func_name: str, func_args: dict | str, output: str) -> Non
         return
     elif func_name == "search_knowledge":
         console.print(Panel(output.strip(), title="📚 Knowledge Base Search Results", border_style="cyan"))
+        print()
+        return
+
+    # 3. GitHub Diagnostics
+    if func_name == "get_pr_failed_checks":
+        pr = func_args.get("pr_number", "N/A")
+        format_pr_failed_checks(output, pr_number=pr)
+        print()
+        return
+    elif func_name == "get_failed_job_logs":
+        job = func_args.get("job_id", "N/A")
+        format_job_logs(output, job_id=job)
+        print()
+        return
+    elif func_name == "get_pr_diff":
+        pr = func_args.get("pr_number", "N/A")
+        format_pr_diff(output, pr_number=pr)
         print()
         return
 
