@@ -18,7 +18,7 @@ mcp = FastMCP(
 )
 
 # Strictly allowlisted read-only diagnostic operations (Principle of Least Privilege)
-ALLOWED_ACTIONS = {"get_pods", "describe_pod", "get_logs", "get_events"}
+ALLOWED_ACTIONS = {"get_pods", "describe_pod", "get_logs", "get_events", "get_nodes", "describe_node"}
 
 
 def find_kubectl() -> str:
@@ -37,7 +37,8 @@ def find_kubectl() -> str:
     description=(
         "Run safe, read-only kubectl diagnostic commands to inspect pods and troubleshoot Kubernetes issues. "
         "Allowed actions: 'get_pods' (list pods and statuses), 'describe_pod' (events & exit codes), "
-        "'get_logs' (container logs, supports previous=True for crashes), 'get_events' (warning events). "
+        "'get_logs' (container logs, supports previous=True for crashes), 'get_events' (warning events), "
+        "'get_nodes' (list cluster nodes, roles, and status), 'describe_node' (node conditions, CPU/memory pressure). "
         "Pass namespace='all' or '-A' to inspect all namespaces across the entire cluster. "
         "Mutations (delete, apply, edit) are strictly prohibited."
     ),
@@ -45,6 +46,7 @@ def find_kubectl() -> str:
 def kubectl_diagnose(
     action: str,
     pod_name: str | None = None,
+    node_name: str | None = None,
     namespace: str = "default",
     previous: bool = False,
     tail: int = 100,
@@ -61,16 +63,26 @@ def kubectl_diagnose(
     kubectl_bin = find_kubectl()
     ns = (namespace or "default").strip()
     is_all_ns = ns.lower() in ("all", "-a", "--all-namespaces", "*")
+    target_node = (node_name or pod_name or "").strip()
 
-    if is_all_ns and action_clean in ("describe_pod", "get_logs"):
-        return f"Error: Action '{action_clean}' requires a specific namespace (e.g. namespace='kube-system')."
+    # Node operations are cluster-scoped
+    if action_clean == "get_nodes":
+        cmd = [kubectl_bin, "get", "nodes", "-o", "wide"]
+    elif action_clean == "describe_node":
+        if not target_node:
+            return "Error: 'node_name' or 'pod_name' is required for action 'describe_node'."
+        cmd = [kubectl_bin, "describe", "node", target_node]
 
-    # Build argument list safely without shell=True to eliminate command injection
-    if is_all_ns:
+    # Pod operations can be namespaced
+    elif is_all_ns:
+        if action_clean in ("describe_pod", "get_logs"):
+            return f"Error: Action '{action_clean}' requires a specific namespace (e.g. namespace='kube-system')."
         if action_clean == "get_pods":
             cmd = [kubectl_bin, "get", "pods", "-A", "-o", "wide"]
         elif action_clean == "get_events":
             cmd = [kubectl_bin, "get", "events", "-A", "--sort-by=.metadata.creationTimestamp"]
+        else:
+            cmd = [kubectl_bin, "get", "pods", "-A", "-o", "wide"]
     else:
         cmd = [kubectl_bin, "-n", ns]
         if action_clean == "get_pods":

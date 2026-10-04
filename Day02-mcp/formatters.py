@@ -139,6 +139,100 @@ def format_describe_pod(output: str, pod_name: str, namespace: str) -> None:
     )
 
 
+def format_get_nodes(output: str) -> None:
+    """Format `kubectl get nodes` table into a stylized Rich Table."""
+    lines = [l for l in output.splitlines() if l.strip()]
+    header_idx = -1
+    for i, line in enumerate(lines):
+        if "NAME" in line and "STATUS" in line and "ROLES" in line:
+            header_idx = i
+            break
+
+    if header_idx == -1:
+        console.print(Panel(output.strip(), title="☸ Cluster Nodes", border_style="cyan"))
+        return
+
+    header_line = lines[header_idx]
+    desired_cols = ["NAME", "STATUS", "ROLES", "AGE", "VERSION", "INTERNAL-IP"]
+    col_spans = []
+    for col in desired_cols:
+        m = re.search(r"\b" + col + r"\b", header_line)
+        if m:
+            col_spans.append((col, m.start()))
+    col_spans.sort(key=lambda x: x[1])
+
+    table = Table(
+        title="☸ Kubernetes Cluster Nodes",
+        header_style="bold cyan",
+        border_style="green",
+        show_lines=False,
+    )
+    for col_name, _ in col_spans:
+        table.add_column(col_name)
+
+    for row_line in lines[header_idx + 1:]:
+        if not row_line.strip():
+            continue
+        row_vals = []
+        for i, (col_name, start) in enumerate(col_spans):
+            end = col_spans[i + 1][1] if i + 1 < len(col_spans) else None
+            val = row_line[start:end].strip() if end else row_line[start:].strip()
+            if col_name == "STATUS":
+                styled_val = f"[bold green]{val}[/bold green]" if "ready" in val.lower() and "not" not in val.lower() else f"[bold red]{val}[/bold red]"
+            elif col_name == "NAME":
+                styled_val = f"[bold white]{val}[/bold white]"
+            else:
+                styled_val = val
+            row_vals.append(styled_val)
+        table.add_row(*row_vals)
+
+    console.print(table)
+
+
+def format_describe_node(output: str, node_name: str) -> None:
+    """Format `kubectl describe node` highlighting Conditions and Allocatable resources."""
+    lines = output.splitlines()
+    highlighted = []
+    in_conditions = False
+
+    for line in lines:
+        if line.startswith("=== kubectl"):
+            continue
+        if line.startswith("Conditions:"):
+            in_conditions = True
+            highlighted.append("\n[bold cyan]── Node Conditions ──[/bold cyan]")
+            continue
+        elif in_conditions and (line.startswith("Addresses:") or line.startswith("Capacity:")):
+            in_conditions = False
+
+        if in_conditions:
+            if "MemoryPressure" in line or "DiskPressure" in line or "PIDPressure" in line:
+                if "False" in line:
+                    highlighted.append(f"[green]{line}[/green]")
+                else:
+                    highlighted.append(f"[bold red]{line}[/bold red]")
+            elif "Ready" in line:
+                if "True" in line:
+                    highlighted.append(f"[bold green]{line}[/bold green]")
+                else:
+                    highlighted.append(f"[bold red]{line}[/bold red]")
+            else:
+                highlighted.append(line)
+        elif any(k in line.lower() for k in ("cpu:", "memory:", "ephemeral-storage:", "taints:", "unschedulable:")):
+            highlighted.append(f"[yellow]{line}[/yellow]")
+        elif len(highlighted) < 30:
+            highlighted.append(line)
+
+    console.print(
+        Panel(
+            "\n".join(highlighted[:35]),
+            title=f"🖥 [bold cyan]Node Diagnostics: {node_name}[/bold cyan]",
+            border_style="cyan",
+            expand=False,
+        )
+    )
+
+
 def format_events(output: str, namespace: str) -> None:
     """Format `kubectl get events` table."""
     if "no output" in output.lower() or "no resources found" in output.lower():
@@ -178,11 +272,12 @@ def render_mcp_output(func_name: str, func_args: dict | str, output: str) -> Non
     action = func_args.get("action", "")
     ns = func_args.get("namespace", "default")
     pod = func_args.get("pod_name", "")
+    node = func_args.get("node_name", "") or pod
 
     # 1. Kubernetes Diagnostics
     if func_name == "kubectl_diagnose":
         if "Command succeeded but returned no output" in output:
-            console.print(f"[dim]ℹ No pods found in namespace '{ns}'.[/dim]\n")
+            console.print(f"[dim]ℹ No resources found for '{action}' in namespace '{ns}'.[/dim]\n")
             return
 
         if action == "get_pods":
@@ -191,6 +286,14 @@ def render_mcp_output(func_name: str, func_args: dict | str, output: str) -> Non
             return
         elif action == "describe_pod":
             format_describe_pod(output, pod_name=pod, namespace=ns)
+            print()
+            return
+        elif action == "get_nodes":
+            format_get_nodes(output)
+            print()
+            return
+        elif action == "describe_node":
+            format_describe_node(output, node_name=node)
             print()
             return
         elif action == "get_events":

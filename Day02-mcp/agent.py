@@ -18,8 +18,14 @@ import sys
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
 
+from rich.console import Console
+from rich.markdown import Markdown
+
 from mcp_client import MCPClientManager
 from formatters import render_mcp_output
+
+# Global rich console
+console = Console()
 
 # Base directory
 BASE_DIR = Path(__file__).resolve().parent
@@ -202,7 +208,10 @@ async def main():
                     # Filter residual regex artifacts
                     answer = re.sub(r"\*\([^\)]*\)\*", "", answer).strip()
 
-                    print(f"\n\033[1;32mAI:\033[0m {answer}\n")
+                    print()
+                    console.print("[bold green]🤖 AI Assistant:[/bold green]")
+                    console.print(Markdown(answer))
+                    print()
                     messages.append({"role": "assistant", "content": answer})
                     save_history()
                     break
