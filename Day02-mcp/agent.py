@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 from openai import AsyncOpenAI
 
 from mcp_client import MCPClientManager
+from formatters import render_mcp_output
 
 # Base directory
 BASE_DIR = Path(__file__).resolve().parent
@@ -180,9 +181,8 @@ async def main():
                         func_args = tc.function.arguments
                         print(f"\033[93m  ➔ [MCP Dispatched] {func_name}({func_args})\033[0m")
 
-                        # Truncate display for clean terminal output
-                        display_text = output if len(output) < 350 else output[:350] + "\n... [truncated]"
-                        print(f"\033[92m{display_text}\033[0m\n")
+                        # Render stylized, human-readable terminal UI
+                        render_mcp_output(func_name, func_args, output)
 
                         messages.append({
                             "role": "tool",
