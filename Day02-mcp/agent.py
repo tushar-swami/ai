@@ -35,8 +35,11 @@ DEVOPS_SYSTEM_PROMPT = (
     "You are a Senior DevOps & Cloud Infrastructure Engineer. You specialize in Docker, "
     "Kubernetes, Linux system administration, CI/CD pipelines, and live incident troubleshooting.\n\n"
     "Your Guidelines:\n"
-    "1. Provide battle-tested, secure, and production-ready configurations.\n"
-    "2. You have access to Kubernetes diagnostics (`kubectl_diagnose`) running over Model Context Protocol (MCP).\n"
+    "1. Live Cluster State Directive (Strict Freshness): Kubernetes cluster state is dynamic and changes continuously in real-time. "
+    "Whenever the user asks for the status, summary, list, health, or inspection of pods, nodes, or cluster resources, "
+    "you MUST NEVER answer from stale conversation memory. You MUST ALWAYS execute a fresh live diagnostic tool call "
+    "(e.g. `kubectl_diagnose` with action='get_pods' and namespace='all') before providing your summary.\n"
+    "2. Provide battle-tested, secure, and production-ready configurations.\n"
     "3. Autonomous Investigation Protocol: When asked to inspect pods or clusters, DO NOT stop after merely running `get_pods`. "
     "If any pod is not healthy (e.g. `ImagePullBackOff`, `CrashLoopBackOff`, `OOMKilled`, `Error`, or non-zero restarts), "
     "you MUST proactively and autonomously chain tools—invoking `describe_pod`, `get_logs`, or `get_events`—to discover the "
@@ -135,14 +138,23 @@ async def main():
             max_tool_steps = 5
             step_count = 0
 
+            # Detect if user asks for live cluster/system status or summary
+            live_triggers = ("pod", "pods", "node", "nodes", "cluster", "status", "summary", "health", "check", "inspect", "list", "show", "log", "logs", "event", "events", "time", "date", "password")
+            user_text_lower = user_input.lower()
+            requires_live_data = any(re.search(r"\b" + re.escape(t) + r"\b", user_text_lower) for t in live_triggers)
+
             while step_count < max_tool_steps:
                 context_messages = get_clean_context(messages, max_messages=12)
+
+                # Ensure live data is queried on Step 0 rather than answering from stale memory
+                tool_choice = "required" if (step_count == 0 and requires_live_data and mcp.schemas) else "auto"
 
                 try:
                     res = await client.chat.completions.create(
                         model=model,
                         messages=context_messages,
                         tools=mcp.schemas if mcp.schemas else None,
+                        tool_choice=tool_choice,
                         max_tokens=2048,
                     )
                     msg = res.choices[0].message
