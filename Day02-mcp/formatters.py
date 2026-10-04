@@ -259,6 +259,60 @@ def format_events(output: str, namespace: str) -> None:
     )
 
 
+def format_pr_list(output: str, repo: str) -> None:
+    """Format GitHub PR list into a Rich Table."""
+    lines = [l.strip() for l in output.splitlines() if l.strip()]
+    table = Table(
+        title=f"🐙 GitHub Pull Requests ({repo})",
+        header_style="bold magenta",
+        border_style="magenta",
+    )
+    table.add_column("PR #", style="bold cyan", justify="right")
+    table.add_column("Title", style="bold white")
+    table.add_column("State", justify="center")
+    table.add_column("Author", style="yellow")
+    table.add_column("Branch", style="dim white")
+    table.add_column("CI Status", justify="center")
+
+    curr_pr = {}
+    for line in lines:
+        if line.startswith("• PR #"):
+            if curr_pr.get("number"):
+                state_badge = "[green]OPEN[/green]" if curr_pr.get("state", "").upper() == "OPEN" else "[purple]CLOSED[/purple]"
+                ci = curr_pr.get("ci", "N/A").upper()
+                ci_badge = "[bold red on black] FAILED [/bold red on black]" if "FAIL" in ci else (
+                    "[bold green on black] PASSED [/bold green on black]" if "PASS" in ci else (
+                        "[purple on black] MERGED [/purple on black]" if "MERGE" in ci else ci
+                    )
+                )
+                table.add_row(curr_pr["number"], curr_pr.get("title", ""), state_badge, curr_pr.get("author", "N/A"), curr_pr.get("branch", "N/A"), ci_badge)
+            m = re.match(r"• PR #(\d+):\s*(.*)", line)
+            if m:
+                curr_pr = {"number": f"#{m.group(1)}", "title": m.group(2)}
+            else:
+                curr_pr = {"number": "N/A", "title": line}
+        elif line.startswith("State:"):
+            curr_pr["state"] = line.split(":", 1)[1].strip()
+        elif line.startswith("Author:"):
+            curr_pr["author"] = line.split(":", 1)[1].strip()
+        elif line.startswith("Branch:"):
+            curr_pr["branch"] = line.split(":", 1)[1].strip()
+        elif line.startswith("CI:"):
+            curr_pr["ci"] = line.split(":", 1)[1].strip()
+
+    if curr_pr.get("number"):
+        state_badge = "[green]OPEN[/green]" if curr_pr.get("state", "").upper() == "OPEN" else "[purple]CLOSED[/purple]"
+        ci = curr_pr.get("ci", "N/A").upper()
+        ci_badge = "[bold red on black] FAILED [/bold red on black]" if "FAIL" in ci else (
+            "[bold green on black] PASSED [/bold green on black]" if "PASS" in ci else (
+                "[purple on black] MERGED [/purple on black]" if "MERGE" in ci else ci
+            )
+        )
+        table.add_row(curr_pr["number"], curr_pr.get("title", ""), state_badge, curr_pr.get("author", "N/A"), curr_pr.get("branch", "N/A"), ci_badge)
+
+    console.print(table)
+
+
 def format_pr_failed_checks(output: str, pr_number: int | str) -> None:
     """Format failed GitHub check runs into a Rich Table."""
     lines = [l.strip() for l in output.splitlines() if l.strip()]
@@ -415,7 +469,12 @@ def render_mcp_output(func_name: str, func_args: dict | str, output: str) -> Non
         return
 
     # 3. GitHub Diagnostics
-    if func_name == "get_pr_failed_checks":
+    if func_name == "list_prs":
+        repo = func_args.get("repo") or "tushar-swami/ai"
+        format_pr_list(output, repo=repo)
+        print()
+        return
+    elif func_name == "get_pr_failed_checks":
         pr = func_args.get("pr_number", "N/A")
         format_pr_failed_checks(output, pr_number=pr)
         print()

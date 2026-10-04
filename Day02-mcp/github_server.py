@@ -127,6 +127,69 @@ def call_github_api(endpoint: str, headers: dict = None, as_json: bool = True):
         raise RuntimeError(f"GitHub network request failed: {e}")
 
 
+# ── Tool 0: List Pull Requests ────────────────────────────────────────
+@mcp.tool(
+    name="list_prs",
+    description=(
+        "List Pull Requests on GitHub for a repository (defaulting to the current repository). "
+        "Supports filtering by state ('open', 'closed', 'all'). "
+        "Returns PR numbers, titles, authors, branches, and CI statuses."
+    ),
+)
+def list_prs(state: str = "open", repo: str | None = None) -> str:
+    """List pull requests with their title, number, author, branch, and status."""
+    target_repo = (repo or "").strip() or get_default_repo()
+
+    # Use mock fixture only for default private repo when no GITHUB_TOKEN is configured
+    if not os.getenv("GITHUB_TOKEN") and target_repo == get_default_repo():
+        prs_file = FIXTURES_DIR / "prs.json"
+        if prs_file.exists():
+            try:
+                prs = json.loads(prs_file.read_text(encoding="utf-8"))
+                if state != "all":
+                    prs = [p for p in prs if p.get("state") == state]
+                lines = [
+                    f"=== Pull Requests for {target_repo} (state: {state}) ===",
+                    "[Notice: 'tushar-swami/ai' is a private repository. To query live private PRs, set GITHUB_TOKEN in Day02-mcp/.env. Displaying local PRs:]\n"
+                ]
+                for p in prs:
+                    lines.append(
+                        f"• PR #{p['number']}: {p['title']}\n"
+                        f"  State:   {p.get('state', 'open').upper()}\n"
+                        f"  Author:  {p.get('user', 'unknown')}\n"
+                        f"  Branch:  {p.get('head_branch', 'feature')} -> {p.get('base_branch', 'main')}\n"
+                        f"  CI:      {p.get('ci_status', 'UNKNOWN')}\n"
+                    )
+                return "\n".join(lines)
+            except Exception:
+                pass
+
+    # Real GitHub API Path (works for public repos or authenticated private repos)
+    try:
+        prs_data = call_github_api(f"/repos/{target_repo}/pulls?state={state}&per_page=10")
+        if not prs_data:
+            return f"No {state} pull requests found for {target_repo}."
+
+        lines = [f"=== Pull Requests for {target_repo} (state: {state}) ==="]
+        for p in prs_data:
+            lines.append(
+                f"• PR #{p['number']}: {p['title']}\n"
+                f"  State:   {p.get('state', 'open').upper()}\n"
+                f"  Author:  {p.get('user', {}).get('login', 'unknown')}\n"
+                f"  Branch:  {p.get('head', {}).get('ref', '')} -> {p.get('base', {}).get('ref', 'main')}\n"
+                f"  URL:     {p.get('html_url', '')}\n"
+            )
+        return "\n".join(lines)
+    except Exception as e:
+        prs_file = FIXTURES_DIR / "prs.json"
+        if prs_file.exists():
+            return (
+                f"[Notice: Live GitHub API returned: {e}. Falling back to sample PR fixtures]\n\n"
+                + list_prs(state=state, repo="tushar-swami/ai")
+            )
+        return f"Error listing pull requests: {e}"
+
+
 # ── Tool 1: Get PR Failed Checks ──────────────────────────────────────
 @mcp.tool(
     name="get_pr_failed_checks",

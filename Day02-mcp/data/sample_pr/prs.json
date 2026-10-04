@@ -1,0 +1,35 @@
+[
+  {
+    "number": 42,
+    "title": "Fix discount logic for premium users",
+    "state": "open",
+    "user": "alice-dev",
+    "head_branch": "fix/premium-discount",
+    "base_branch": "main",
+    "ci_status": "FAILED",
+    "created_at": "2026-10-04T11:45:00Z",
+    "url": "https://github.com/tushar-swami/ai/pull/42"
+  },
+  {
+    "number": 41,
+    "title": "Upgrade Pydantic to v2 and optimize validation",
+    "state": "open",
+    "user": "bob-ops",
+    "head_branch": "chore/pydantic-v2",
+    "base_branch": "main",
+    "ci_status": "PASSED",
+    "created_at": "2026-10-03T16:20:00Z",
+    "url": "https://github.com/tushar-swami/ai/pull/41"
+  },
+  {
+    "number": 40,
+    "title": "Add Kubernetes liveness and readiness probe endpoints",
+    "state": "closed",
+    "user": "charlie-sre",
+    "head_branch": "feat/k8s-probes",
+    "base_branch": "main",
+    "ci_status": "MERGED",
+    "created_at": "2026-10-02T09:10:00Z",
+    "url": "https://github.com/tushar-swami/ai/pull/40"
+  }
+]

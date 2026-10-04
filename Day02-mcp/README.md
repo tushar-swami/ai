@@ -23,11 +23,12 @@ In Day 01, tools were imported directly into the agent's Python process. In Day 
 │ Server 1: k8s_server.py │ │Server 2:system_server.py│ │Server 3:github_server.py│
 │  (FastMCP Subprocess)   │ │  (FastMCP Subprocess)   │ │  (FastMCP Subprocess)   │
 │                         │ │                         │ │                         │
-│ • kubectl_diagnose      │ │ • read_file, list_files │ │ • get_pr_failed_checks  │
-│   (pods, nodes, logs,   │ │ • get_current_datetime  │ │ • get_failed_job_logs   │
-│    events, describe)    │ │ • generate_password     │ │   (regex log scrubber)  │
-│                         │ │ • roll_dice             │ │ • get_pr_diff           │
-│                         │ │ • search_knowledge      │ │   (unified code patch)  │
+│ • kubectl_diagnose      │ │ • read_file, list_files │ │ • list_prs              │
+│   (pods, nodes, logs,   │ │ • get_current_datetime  │ │ • get_pr_failed_checks  │
+│    events, describe)    │ │ • generate_password     │ │ • get_failed_job_logs   │
+│                         │ │ • roll_dice             │ │   (regex log scrubber)  │
+│                         │ │ • search_knowledge      │ │ • get_pr_diff           │
+│                         │ │                         │ │   (unified code patch)  │
 └─────────────────────────┘ └─────────────────────────┘ └─────────────────────────┘
 ```
 
