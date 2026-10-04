@@ -1,7 +1,7 @@
 # 🚀 AI Engineering Project Tracker — Day 01
 
 > **Status:** Active & Production-Ready Architecture  
-> **Last Updated:** 2026-09-25  
+> **Last Updated:** 2026-10-04  
 > **Current LLM:** `gemma4:e4b` (via local Ollama on `http://localhost:11434/v1`)  
 > **Primary Directory:** [`/Users/tusharswami/Documents/ai/Day01`](file:///Users/tusharswami/Documents/ai/Day01)
 
@@ -121,7 +121,8 @@ Created in `Day01/knowledge/` to serve as our indexed facts database:
 ## 📜 Completed Milestones & Git History
 
 ```text
-b71d49a feat(Day01): add autonomous investigation protocol to DevOps persona prompt
+0a3cf34 feat(Day01): add autonomous investigation protocol to DevOps persona prompt and update PROJECT_TRACKER.md
+c979e9f docs(Day01): update PROJECT_TRACKER.md with recent milestones
 93dbd91 fix(Day01): add get_clean_context helper to prevent orphaned tool messages in context window
 6301750 perf(Day01): add max_tokens=2048 to prevent answer truncation on long multi-pod diagnostics
 0a4d35b feat(Day01): add OOMKilled, LivenessProbe, and ImagePullBackOff diagnostic test manifests and update PROJECT_TRACKER.md
@@ -160,10 +161,24 @@ ef7e6a2 feat(Day01): add pure-Python BM25 RAG system, search_knowledge tool, kno
 
 ## 💻 How to Run & Test
 
+> [!IMPORTANT]
+> Ensure the virtual environment is activated before running scripts, or run via `.venv` Python:
+> ```bash
+> # From project root:
+> source .venv/bin/activate
+> # Or if navigating into Day01:
+> source ../.venv/bin/activate
+> ```
+
 ### 1. Interactive Chat Assistant
 ```bash
+# From Day01 directory:
 cd Day01
+source ../.venv/bin/activate
 python hello_ai.py
+
+# Or directly from project root:
+.venv/bin/python Day01/hello_ai.py
 ```
 - Available in-chat commands:
   - `/clear [optional persona]` — Reset conversation memory (and set custom persona)

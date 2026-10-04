@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: payment-service
+  namespace: default
+  labels:
+    app: payment-service
+    tier: backend
+spec:
+  containers:
+    - name: payment-api
+      image: busybox:1.36
+      command: ["sh", "-c"]
+      args:
+        - |
+          echo "Starting Payment Service v2.4.1..."
+          sleep 2
+          echo "Loading database configuration from /etc/config/database.json..."
+          if [ ! -f /etc/config/database.json ]; then
+            echo "FATAL ERROR: Configuration file '/etc/config/database.json' not found!" >&2
+            echo "Service unable to connect to PostgreSQL. Aborting startup." >&2
+            exit 1
+          fi
+          echo "Connected successfully. Listening on port 8080."
+          sleep 3600
+      resources:
+        limits:
+          memory: "128Mi"
+          cpu: "250m"
+        requests:
+          memory: "64Mi"
+          cpu: "100m"

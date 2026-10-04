@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "kubernetes": {
+      "command": "python",
+      "args": ["k8s_server.py"],
+      "description": "Safe read-only Kubernetes diagnostics server (FastMCP)"
+    },
+    "system": {
+      "command": "python",
+      "args": ["system_server.py"],
+      "description": "Local file operations, date/time, security, and knowledge base search server (FastMCP)"
+    }
+  }
+}
