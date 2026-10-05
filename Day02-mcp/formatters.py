@@ -452,6 +452,18 @@ def render_mcp_output(func_name: str, func_args: dict | str, output: str) -> Non
             print()
             return
 
+    if func_name == "kubectl_apply":
+        is_err = "error" in output.lower() and "successful" not in output.lower()
+        console.print(
+            Panel(
+                output.strip(),
+                title="☸ [bold cyan]Kubernetes Manifest Apply[/bold cyan]",
+                border_style="red" if is_err else "green",
+            )
+        )
+        print()
+        return
+
     # 2. System Utilities
     if func_name == "get_current_datetime":
         console.print(f"[bold green]🕒 Current Time:[/bold green] [bold white]{output.strip()}[/bold white]\n")

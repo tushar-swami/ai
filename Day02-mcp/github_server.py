@@ -366,6 +366,8 @@ def create_remediation_pr(
     repo: str | None = None,
     diff: str | None = None,
     patch: str | None = None,
+    description: str | None = None,
+    fix_details: str | None = None,
 ) -> str:
     """Safely apply fix on dedicated branch, verify tests, and open an unmerged PR."""
     pr_num = str(pr_number) if pr_number else "42"
@@ -375,8 +377,15 @@ def create_remediation_pr(
     target_file = (file_path or "tests/test_pricing.py").strip()
     commit_msg = (commit_message or f"fix: update test assertions for PR #{pr_num} discount changes").strip()
     title = (pr_title or f"fix: update test assertions for PR #{pr_num}").strip()
+    
+    inferred_body = pr_body
+    if not inferred_body and (description or fix_details):
+        inferred_body = (description or "").strip()
+        if fix_details:
+            inferred_body += f"\n\n### Fix Details:\n{fix_details.strip()}"
+
     body = (
-        pr_body
+        inferred_body
         or f"Automated remediation PR generated for failed CI tasks on PR #{pr_num}.\n\n"
            f"### Summary of Changes:\n- Synchronized unit test assertions in `{target_file}` with updated logic.\n\n"
            f"🛡️ Safety Mandate: This PR was created on an isolated fix branch and will NEVER be auto-merged to `main`. Awaiting maintainer review."

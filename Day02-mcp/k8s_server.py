@@ -109,6 +109,21 @@ def kubectl_diagnose(
             check=False,
         )
 
+        # Fallback to current logs if --previous failed or returned unable to retrieve
+        if action_clean == "get_logs" and previous:
+            out_check = (res.stdout or "") + (res.stderr or "")
+            if res.returncode != 0 or "unable to retrieve" in out_check.lower():
+                fallback_cmd = [c for c in cmd if c != "--previous"]
+                fb_res = subprocess.run(
+                    fallback_cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                    check=False,
+                )
+                if fb_res.returncode == 0 and fb_res.stdout.strip():
+                    res = fb_res
+
         if res.returncode != 0:
             err_msg = res.stderr.strip() or res.stdout.strip()
             if "refused" in err_msg.lower() or "connect" in err_msg.lower():
@@ -130,6 +145,51 @@ def kubectl_diagnose(
         return "Error: kubectl command timed out after 15 seconds. Cluster may be unreachable."
     except Exception as e:
         return f"Error executing kubectl: {e}"
+
+
+@mcp.tool(
+    name="kubectl_apply",
+    description=(
+        "Safely applies a Kubernetes YAML manifest (ConfigMap, Secret, Deployment patch, or Pod) "
+        "to resolve cluster incidents, provide missing configurations, or deploy fixes."
+    ),
+)
+def kubectl_apply(
+    yaml_content: str,
+    namespace: str = "default",
+) -> str:
+    """Apply a YAML manifest to the Kubernetes cluster."""
+    kubectl_bin = find_kubectl()
+    if not kubectl_bin:
+        return "Error: kubectl binary not found."
+
+    clean_yaml = yaml_content.strip()
+    if not clean_yaml:
+        return "Error: No YAML content provided to apply."
+
+    ns = namespace.strip() if namespace else "default"
+    cmd = [kubectl_bin, "-n", ns, "apply", "-f", "-"]
+
+    try:
+        res = subprocess.run(
+            cmd,
+            input=clean_yaml,
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+
+        if res.returncode != 0:
+            err_msg = res.stderr.strip() or res.stdout.strip()
+            return f"kubectl apply error (exit {res.returncode}):\n{err_msg}"
+
+        return f"=== kubectl apply successful (namespace: {ns}) ===\n\n{res.stdout.strip()}"
+
+    except subprocess.TimeoutExpired:
+        return "Error: kubectl apply timed out after 15 seconds."
+    except Exception as e:
+        return f"Error executing kubectl apply: {e}"
 
 
 if __name__ == "__main__":

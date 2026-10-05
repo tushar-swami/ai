@@ -515,6 +515,16 @@ class K8sDiagnosticFlightPlan(BaseFlightPlan):
                     "previous": True
                 }, render=False)
 
+                # If --previous logs are unavailable or returned an error, fallback to current container logs
+                if "unable to retrieve" in logs_out.lower() or ("error" in logs_out.lower() and len(logs_out.splitlines()) < 4):
+                    curr_logs = await _dispatch_tool(mcp_manager, "k8s", "kubectl_diagnose", {
+                        "action": "get_logs",
+                        "pod_name": target_pod,
+                        "previous": False
+                    }, render=False)
+                    if curr_logs and "unable to retrieve" not in curr_logs.lower():
+                        logs_out = curr_logs
+
                 log_summary = "Container startup failure detected."
                 for line in logs_out.splitlines():
                     clean_l = line.strip()

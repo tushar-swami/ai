@@ -275,6 +275,12 @@ Dividing the mission into distinct milestones naturally enables a **Supervisor�
    - Replaced with clean, focused 1-line milestone progress indicators (`⚡ [1/4] ...` ➔ `✔ [1/4] ...`), rendering the final dashboard table **exactly once** upon completion.
    - Replaced high-level bullet checklists with a dedicated `generate_incident_report()` pass delivering a full Incident Report directly answering the user: Root Cause Analysis, verbatim Crash Log Evidence, and copy-pasteable YAML / Code Remediation.
 
+9. **Resilient Container Log Fallback & Live `kubectl_apply` Remediation (`k8s_server.py` & `github_server.py`)**:
+   - Container log extraction in `k8s_server.py` and `M3_ISOLATE` now detects when containerd `--previous` logs are unavailable (`unable to retrieve container logs`) and automatically falls back to current container logs, guaranteeing that root-cause crash dumps are never missed.
+   - Introduced `kubectl_apply` tool in `k8s_server.py` allowing live cluster configuration updates (ConfigMaps, Secrets, manifest patches) with interactive Rich formatting.
+   - Updated `create_remediation_pr` schema in `github_server.py` to accept `description` and `fix_details` parameters, eliminating unexpected argument validation errors.
+   - Strengthened `DEVOPS_SYSTEM_PROMPT` in `agent.py` to route Kubernetes cluster fixes to `kubectl_apply` rather than GitHub PR tools, enforcing strict error honesty.
+
 ### Verification Execution Trace:
 - **Informational Query Verification**: `Show me the pod status and summary...` ➔ Matched `None`, cleanly routed to standard `kubectl_diagnose(action="get_pods")`.
 - **Clean Cluster Early-Exit Verification**: `Troubleshoot crashlooping pods in my cluster` (empty cluster) ➔ M1 completed with no errors, M2/M3/M4 marked `SKIPPED`, zero ghost pods diagnosed.

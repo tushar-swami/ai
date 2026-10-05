@@ -59,7 +59,7 @@ Day02-mcp/
 ├── .env                  # Ollama endpoint & model settings
 ├── mcp_servers.json      # Declarative MCP tri-server catalog (k8s, system, github)
 ├── orchestrator.py       # SRE Flight Plan Orchestrator (GitHub CI & K8s plans)
-├── k8s_server.py         # Subprocess 1: FastMCP server for Kubernetes diagnostics
+├── k8s_server.py         # Subprocess 1: FastMCP server for Kubernetes diagnostics & apply remediation
 ├── system_server.py      # Subprocess 2: FastMCP server for files, datetime, & BM25 search
 ├── github_server.py      # Subprocess 3: FastMCP server for PR failure & CI log diagnostics
 ├── mcp_client.py         # Dynamic MCP client bridge (spawns servers & translates schemas)

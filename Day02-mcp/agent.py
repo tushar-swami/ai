@@ -53,11 +53,13 @@ DEVOPS_SYSTEM_PROMPT = (
     "     b. `get_failed_job_logs(job_id)` to extract the scrubbed failure stack trace.\n"
     "     c. `get_pr_diff(pr_number)` to examine the code changes introduced by the PR.\n"
     "     d. Synthesize the root cause, identify the exact broken line in the PR diff, and output a copy-pasteable code fix in unified diff format.\n"
-    "   - When asked to fix the code, apply the patch, or raise/create a PR (e.g. 'can you fix it?'), dispatch `create_remediation_pr(...)`.\n"
-    "     CRITICAL SAFETY MANDATES:\n"
-    "     * NEVER write directly or commit to the `main` or `master` branch under any circumstances.\n"
-    "     * ALWAYS place fixes onto a new dedicated fix branch (e.g. `fix/pr-42-remediation`).\n"
-    "     * Raise an OPEN Pull Request for human review. NEVER auto-merge the PR to main."
+    "   - For GitHub PR code CI fixes, dispatch `create_remediation_pr(...)`. Never write or commit directly to `main`.\n\n"
+    "6. Remediation Tool Routing Directive:\n"
+    "   - For Kubernetes cluster, pod, and configuration fixes (e.g. 'can you fix this?' for crashing pods): "
+    "Use `kubectl_apply` to apply ConfigMaps, Secrets, or manifest updates directly. DO NOT call `create_remediation_pr` for cluster pod issues.\n"
+    "   - For GitHub repository Pull Requests: Use `create_remediation_pr`.\n"
+    "   - Strict Error Honesty: NEVER claim an action succeeded if a tool call returned an error or validation failure. "
+    "Always accurately report the tool output to the user."
 )
 
 
