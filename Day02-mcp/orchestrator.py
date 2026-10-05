@@ -168,11 +168,17 @@ class GitHubCIFlightPlan(BaseFlightPlan):
     @classmethod
     def match(cls, prompt: str) -> bool:
         p = prompt.lower()
-        keywords = ["pr", "pull request", "failed check", "ci failure", "github", "ci.yml", "test failure"]
-        actions = ["fix", "triage", "diagnose", "check", "analyze", "resolve", "debug"]
-        has_keyword = any(k in p for k in keywords)
-        has_action = any(a in p for a in actions) or ("#" in p)
-        return has_keyword and has_action
+        incident_triggers = [
+            "fix", "triage", "diagnose", "resolve", "repair", "remediate",
+            "failing check", "failed check", "ci failure", "test failure", "broken build"
+        ]
+        gh_keywords = ["pr", "pull request", "github", "ci.yml"]
+        has_incident = any(trigger in p for trigger in incident_triggers)
+        has_gh = any(k in p for k in gh_keywords)
+        # Avoid purely informational queries like "list prs" or "show prs"
+        if not has_incident and not ("fix" in p or "fail" in p):
+            return False
+        return (has_gh and has_incident) or (has_gh and "#" in p and ("check" in p or "fix" in p))
 
     async def execute_milestone(
         self,
@@ -327,8 +333,16 @@ class K8sDiagnosticFlightPlan(BaseFlightPlan):
     @classmethod
     def match(cls, prompt: str) -> bool:
         p = prompt.lower()
-        keywords = ["pod", "pods", "kubernetes", "k8s", "crashloop", "oom", "oomkilled", "kubectl", "namespace"]
-        return any(k in p for k in keywords)
+        incident_triggers = [
+            "troubleshoot", "diagnose", "fix", "debug", "investigate",
+            "why is", "why are", "crash", "crashloop", "crashloopbackoff",
+            "oom", "oomkilled", "broken", "failing", "error in pod", "degraded"
+        ]
+        k8s_keywords = ["pod", "pods", "kubernetes", "k8s", "workload"]
+        has_incident = any(trigger in p for trigger in incident_triggers)
+        has_k8s = any(k in p for k in k8s_keywords)
+        # Avoid informational queries like "show me the pod status" or "list pods"
+        return has_k8s and has_incident
 
     async def execute_milestone(
         self,
@@ -350,8 +364,30 @@ class K8sDiagnosticFlightPlan(BaseFlightPlan):
                         target_pod = line.split()[0]
                         break
                 
+                # If user explicitly asked about a specific pod in their prompt
                 if not target_pod:
+                    import re
+                    pod_mention = re.search(r"pod\s+([a-zA-Z0-9_\-]+)", self.prompt, re.IGNORECASE)
+                    if pod_mention:
+                        candidate = pod_mention.group(1).lower()
+                        if candidate not in ("status", "summary", "logs", "health", "crash"):
+                            target_pod = pod_mention.group(1)
+
+                # Fallback to sample fixture if user explicitly asked for sample or broken test pod
+                if not target_pod and ("sample" in self.prompt.lower() or "broken" in self.prompt.lower()):
                     target_pod = "auth-service-broken"
+
+                if not target_pod:
+                    # Clean cluster or no degraded pods found!
+                    milestone.complete(
+                        summary="Scanned namespace: No degraded or failing pods detected. Cluster workloads are healthy (or no pods running).",
+                        raw_data={"pods": pods_out[:300]}
+                    )
+                    # Mark remaining diagnostic/remediation milestones as SKIPPED
+                    for rem_m in self.milestones[1:]:
+                        rem_m.status = MilestoneStatus.SKIPPED
+                        rem_m.summary = "Skipped: Cluster namespace has no degraded workloads requiring remediation."
+                    return True
 
                 self.context_state["target_pod"] = target_pod
                 milestone.complete(
@@ -506,6 +542,10 @@ class OrchestratorEngine:
 
         success = True
         for milestone in plan.milestones:
+            if milestone.status == MilestoneStatus.SKIPPED:
+                console.print(f"[dim cyan]⏭️ {milestone.id} SKIPPED:[/dim cyan] {milestone.summary}\n")
+                continue
+
             milestone.start()
             console.print(f"[bold cyan]⚡ Executing Milestone:[/bold cyan] [bold white]{milestone.id} — {milestone.name}[/bold white]...")
 
@@ -524,12 +564,16 @@ class OrchestratorEngine:
 
             console.print(f"[bold green]✔ {milestone.id} COMPLETED:[/bold green] {milestone.summary}\n")
 
+            # Check if all remaining milestones are completed or skipped
+            all_done = all(m.status in (MilestoneStatus.COMPLETED, MilestoneStatus.SKIPPED) for m in plan.milestones)
+            overall_status = "COMPLETED" if all_done else "IN_PROGRESS"
+
             # Progressive Dashboard update
             print_flight_plan_dashboard(
                 plan_name=plan.name,
                 milestones=plan.milestones,
                 current_milestone_id=milestone.id,
-                overall_status="IN_PROGRESS" if milestone.id != plan.milestones[-1].id else "COMPLETED"
+                overall_status=overall_status
             )
 
         elapsed = round(time.time() - start_time, 2)

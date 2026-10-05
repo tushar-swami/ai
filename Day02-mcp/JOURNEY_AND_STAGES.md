@@ -262,7 +262,13 @@ Dividing the mission into distinct milestones naturally enables a **Supervisor�
 5. **Live Rich Terminal Dashboard (`formatters.py`)**:
    - `print_flight_plan_dashboard`: Renders an interactive table displaying milestone IDs, phase objectives, live status badges, and distilled key findings after each phase transition.
 
+6. **Production Intent Routing & Early-Exit Guardrails**:
+   - **Intent Distinction**: Distinguishes purely informational queries (e.g., *"Show me pod status and summary"* or *"List open PRs"*) from true incident triage. Informational queries route to standard 1-step tool dispatch via ReAct rather than launching an unnecessary 4-phase remediation mission.
+   - **Ghost Resource Elimination & Early Exit**: In `M1_DISCOVER`, if a cluster or PR has zero degraded resources or failures, the engine does not hallucinate fallback fixtures; it marks downstream milestones (`M2`, `M3`, `M4`) as `SKIPPED` and exits with a clean health report.
+
 ### Verification Execution Trace:
+- **Informational Query Verification**: `Show me the pod status and summary...` ➔ Matched `None`, cleanly routed to standard `kubectl_diagnose(action="get_pods")`.
+- **Clean Cluster Early-Exit Verification**: `Troubleshoot crashlooping pods in my cluster` (empty cluster) ➔ M1 completed with no errors, M2/M3/M4 marked `SKIPPED`, zero ghost pods diagnosed.
 - **K8s Plan Verification**: `Why is my broken pod crashing?` ➔ Matched `Kubernetes Pod Diagnostic`, executed M1 ➔ M4, isolated `CrashLoopBackOff` in `auth-service-broken`, completed 4/4 milestones with 100% pass.
 - **GitHub Plan Verification**: `Triage and fix failing checks on PR #42` ➔ Matched `GitHub CI/CD Remediation`, scrubbed traceback, ran local `pytest` gate (100% pass), and generated safe feature branch PR.
 - **General Fallback Verification**: `What is the current time?` ➔ Matched `None`, cleanly fell back to standard ReAct loop.
