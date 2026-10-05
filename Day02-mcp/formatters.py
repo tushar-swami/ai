@@ -489,6 +489,16 @@ def render_mcp_output(func_name: str, func_args: dict | str, output: str) -> Non
         format_pr_diff(output, pr_number=pr)
         print()
         return
+    elif func_name == "create_remediation_pr":
+        console.print(
+            Panel(
+                output.strip(),
+                title="🛡️ [bold green]Remediation Pull Request (Main Branch Protected)[/bold green]",
+                border_style="green",
+            )
+        )
+        print()
+        return
 
     # Fallback default display
     display_out = output if len(output) < 500 else output[:500] + "\n... [truncated for display]"

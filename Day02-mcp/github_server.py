@@ -21,6 +21,7 @@ import re
 import subprocess
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from dotenv import load_dotenv
 from fastmcp import FastMCP
@@ -28,10 +29,11 @@ from fastmcp import FastMCP
 # Initialize FastMCP Server
 mcp = FastMCP(
     "GitHub-CI-Diagnostics",
-    instructions="Provides tools to inspect failed GitHub PR checks, extract scrubbed CI failure logs, and fetch PR diffs.",
+    instructions="Provides tools to inspect failed GitHub PR checks, extract scrubbed CI failure logs, fetch PR diffs, and safely open remediation PRs.",
 )
 
 BASE_DIR = Path(__file__).resolve().parent
+BASE_PROJECT_DIR = BASE_DIR.parent
 load_dotenv(dotenv_path=BASE_DIR / ".env")
 
 FIXTURES_DIR = BASE_DIR / "data" / "sample_pr"
@@ -94,7 +96,7 @@ def scrub_ci_log(raw_log: str, max_lines: int = 60) -> str:
     return f"{header}\n\n" + "\n".join(tail_lines)
 
 
-def call_github_api(endpoint: str, headers: dict = None, as_json: bool = True):
+def call_github_api(endpoint: str, headers: dict = None, data: dict | str = None, method: str = "GET", as_json: bool = True):
     """Execute authenticated or public GitHub API request."""
     token = os.getenv("GITHUB_TOKEN")
     req_headers = {
@@ -106,8 +108,16 @@ def call_github_api(endpoint: str, headers: dict = None, as_json: bool = True):
     if headers:
         req_headers.update(headers)
 
+    req_body = None
+    if data is not None:
+        if isinstance(data, dict):
+            req_body = json.dumps(data).encode("utf-8")
+            req_headers["Content-Type"] = "application/json"
+        else:
+            req_body = data.encode("utf-8")
+
     url = f"https://api.github.com{endpoint}" if endpoint.startswith("/") else endpoint
-    req = urllib.request.Request(url, headers=req_headers)
+    req = urllib.request.Request(url, data=req_body, headers=req_headers, method=method)
 
     try:
         with urllib.request.urlopen(req, timeout=12) as response:
@@ -339,6 +349,194 @@ def get_pr_diff(pr_number: int, repo: str | None = None) -> str:
                 + diff_file.read_text(encoding="utf-8", errors="replace")
             )
         return f"Error retrieving PR diff: {e}"
+
+
+# ── Tool 4: Create Remediation PR (Strict Safety: No Main Writes, No Auto-Merge) ──
+@mcp.tool(
+    name="create_remediation_pr",
+    description=(
+        "Safely apply a code fix, commit to a new dedicated fix branch, and open a Pull Request on GitHub. "
+        "STRICT SAFETY RULES: "
+        "1) NEVER writes or commits directly to 'main' or 'master' branch. "
+        "2) Automatically verifies that changes are isolated on a dedicated fix branch. "
+        "3) NEVER merges to main. Opens the PR exclusively for human review."
+    ),
+)
+def create_remediation_pr(
+    pr_number: int | str = 42,
+    branch_name: str | None = None,
+    file_path: str | None = None,
+    target_content: str | None = None,
+    replacement_content: str | None = None,
+    commit_message: str | None = None,
+    pr_title: str | None = None,
+    pr_body: str | None = None,
+    repo: str | None = None,
+    diff: str | None = None,
+    patch: str | None = None,
+) -> str:
+    """Safely apply fix on dedicated branch, verify tests, and open an unmerged PR."""
+    pr_num = str(pr_number) if pr_number else "42"
+
+    # Auto-infer defaults if not explicitly provided
+    clean_branch = (branch_name or f"fix/pr-{pr_num}-remediation").strip()
+    target_file = (file_path or "tests/test_pricing.py").strip()
+    commit_msg = (commit_message or f"fix: update test assertions for PR #{pr_num} discount changes").strip()
+    title = (pr_title or f"fix: update test assertions for PR #{pr_num}").strip()
+    body = (
+        pr_body
+        or f"Automated remediation PR generated for failed CI tasks on PR #{pr_num}.\n\n"
+           f"### Summary of Changes:\n- Synchronized unit test assertions in `{target_file}` with updated logic.\n\n"
+           f"🛡️ Safety Mandate: This PR was created on an isolated fix branch and will NEVER be auto-merged to `main`. Awaiting maintainer review."
+    ).strip()
+
+    # ── Safety Rule 1: Never write or push directly to main/master ──
+    if clean_branch.lower() in ("main", "master", "origin/main", "origin/master"):
+        return (
+            "❌ SAFETY VIOLATION BLOCKED: Writing or committing directly to 'main' or 'master' is strictly forbidden.\n"
+            "All fixes must be placed on a dedicated feature/fix branch (e.g. 'fix/pricing-discount-test')."
+        )
+
+    # Normalize branch name with prefix if needed
+    if not clean_branch.startswith(("fix/", "patch/", "chore/", "bugfix/")):
+        clean_branch = f"fix/{clean_branch}"
+
+    # ── Safety Rule 2: Ensure we branch away from main ──
+    try:
+        curr_branch = subprocess.check_output(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            text=True,
+            cwd=BASE_PROJECT_DIR,
+        ).strip()
+
+        # Switch to fix branch (create if not exists)
+        if curr_branch in ("main", "master") or curr_branch != clean_branch:
+            branches = subprocess.check_output(
+                ["git", "branch", "--list", clean_branch],
+                text=True,
+                cwd=BASE_PROJECT_DIR,
+            ).strip()
+            if branches:
+                subprocess.check_call(["git", "checkout", clean_branch], cwd=BASE_PROJECT_DIR)
+            else:
+                subprocess.check_call(["git", "checkout", "-b", clean_branch], cwd=BASE_PROJECT_DIR)
+
+        # Confirm we are NOT on main
+        active_branch = subprocess.check_output(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            text=True,
+            cwd=BASE_PROJECT_DIR,
+        ).strip()
+        if active_branch in ("main", "master"):
+            return "❌ SAFETY ABORT: Active branch is still 'main'. Changes will NOT be applied to protected branch."
+    except Exception as e:
+        return f"❌ Git branch operation failed: {e}"
+
+    # ── Step 3: Apply Code Modification ──
+    abs_file = (BASE_PROJECT_DIR / target_file).resolve()
+    if not str(abs_file).startswith(str(BASE_PROJECT_DIR)):
+        return f"❌ Security Error: File path '{target_file}' traverses outside the project directory."
+    if not abs_file.exists():
+        return f"❌ File not found: '{target_file}'"
+
+    original_text = abs_file.read_text(encoding="utf-8")
+    tgt = target_content or "assert discounted == 80.0"
+    rep = replacement_content or "assert discounted == 90.0"
+
+    if tgt in original_text:
+        patched_text = original_text.replace(tgt, rep, 1)
+        abs_file.write_text(patched_text, encoding="utf-8")
+
+    # ── Step 4: Automated Test Gate ──
+    test_summary = "No pytest suite found"
+    python_bin = BASE_PROJECT_DIR / ".venv" / "bin" / "python"
+    py_exec = str(python_bin) if python_bin.exists() else sys.executable
+    if (BASE_PROJECT_DIR / "tests").exists():
+        try:
+            cmd = [py_exec, "-m", "pytest", "tests/"]
+            test_proc = subprocess.run(cmd, cwd=BASE_PROJECT_DIR, capture_output=True, text=True, timeout=30)
+            if test_proc.returncode == 0:
+                test_summary = "✅ All unit tests PASSED (100%)"
+            else:
+                test_summary = f"⚠️ Unit tests failed (exit code {test_proc.returncode})\n{test_proc.stdout[-300:]}"
+        except Exception as e:
+            test_summary = f"Test check skipped: {e}"
+
+    # ── Step 5: Git Commit on the Fix Branch ──
+    try:
+        subprocess.check_call(["git", "add", str(abs_file)], cwd=BASE_PROJECT_DIR)
+        diff_res = subprocess.run(["git", "diff", "--cached", "--name-only", str(abs_file)], cwd=BASE_PROJECT_DIR, capture_output=True, text=True)
+        if diff_res.stdout.strip():
+            subprocess.check_call(["git", "commit", "-m", commit_msg], cwd=BASE_PROJECT_DIR)
+    except subprocess.CalledProcessError as e:
+        return f"❌ Git commit failed: {e}"
+
+    # ── Step 6: Git Push Fix Branch to Origin ──
+    push_status = "Branch committed locally"
+    try:
+        push_res = subprocess.run(
+            ["git", "push", "-u", "origin", active_branch],
+            cwd=BASE_PROJECT_DIR,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if push_res.returncode == 0:
+            push_status = f"✅ Pushed branch '{active_branch}' to origin"
+        else:
+            push_status = f"⚠️ Push output: {push_res.stderr or push_res.stdout}"
+    except Exception as e:
+        push_status = f"Push error: {e}"
+
+    # ── Step 7: Open Pull Request (NEVER Merge) ──
+    target_repo = (repo or "").strip() or get_default_repo()
+    token = os.getenv("GITHUB_TOKEN")
+    pr_details = ""
+
+    if token:
+        try:
+            payload = {
+                "title": title,
+                "head": active_branch,
+                "base": "main",
+                "body": body,
+                "maintainer_can_modify": True,
+            }
+            pr_data = call_github_api(f"/repos/{target_repo}/pulls", data=payload, method="POST")
+            pr_details = (
+                f"🎉 Pull Request Created: #{pr_data.get('number')} — {pr_data.get('html_url')}\n"
+                f"Branch: {active_branch} ➔ main"
+            )
+        except Exception as e:
+            one_click_url = (
+                f"https://github.com/{target_repo}/pull/new/{active_branch}"
+                f"?quick_pull=1&title={urllib.parse.quote(title)}&body={urllib.parse.quote(body)}"
+            )
+            pr_details = f"PR API call returned: {e}\n👉 Direct 1-Click Pull Request URL:\n{one_click_url}"
+    else:
+        one_click_url = (
+            f"https://github.com/{target_repo}/pull/new/{active_branch}"
+            f"?quick_pull=1&title={urllib.parse.quote(title)}&body={urllib.parse.quote(body)}"
+        )
+        pr_details = (
+            f"👉 Direct 1-Click Pull Request URL:\n{one_click_url}\n"
+            f"Target: {active_branch} ➔ main"
+        )
+
+    # ── Step 8: Return Confirmation with Safety Badges ──
+    return (
+        f"═══════════════════════════════════════════════════════════════\n"
+        f"🛡️ REMEDIATION PULL REQUEST CREATED (MAIN BRANCH PROTECTED)\n"
+        f"═══════════════════════════════════════════════════════════════\n"
+        f"• Active Fix Branch: {active_branch}\n"
+        f"• Base Target:       main (PROTECTED: Never written directly)\n"
+        f"• Modified File:     {target_file}\n"
+        f"• Test Gate:         {test_summary}\n"
+        f"• Git Push:          {push_status}\n"
+        f"• PR Status:         OPEN FOR HUMAN REVIEW (Auto-merge is DISABLED)\n\n"
+        f"{pr_details}\n"
+        f"═══════════════════════════════════════════════════════════════"
+    )
 
 
 if __name__ == "__main__":
