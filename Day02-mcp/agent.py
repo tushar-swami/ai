@@ -153,6 +153,8 @@ async def main():
 
             if plan_result:
                 # Flight Plan successfully completed all milestones!
+                console.print("\n[bold green]🤖 AI Assistant (Flight Plan Mission Complete):[/bold green]\n")
+                console.print(Markdown(plan_result.final_summary))
                 messages.append({"role": "assistant", "content": plan_result.final_summary})
                 save_history()
                 print()

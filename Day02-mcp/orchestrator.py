@@ -129,15 +129,17 @@ class BaseFlightPlan(ABC):
     def get_pruned_context_summary(self) -> str:
         """
         Context Garbage Collection:
-        Extracts distilled findings from all completed milestones into a concise prompt.
+        Extracts distilled findings from all completed milestones into a clean markdown summary.
         Prevents raw logs and tool JSON from exhausting the LLM's context window.
         """
-        lines = [f"=== Active Mission: {self.description} ==="]
+        lines = [f"### 📋 {self.name} — Execution Summary\n"]
         for m in self.milestones:
             if m.status == MilestoneStatus.COMPLETED and m.summary:
-                lines.append(f"[{m.id} - {m.name}]: {m.summary}")
+                lines.append(f"- **{m.name}** (`{m.id}`): {m.summary}")
+            elif m.status == MilestoneStatus.SKIPPED and m.summary:
+                lines.append(f"- **{m.name}** (`{m.id}`): *[Skipped]* {m.summary}")
             elif m.status == MilestoneStatus.FAILED and m.error:
-                lines.append(f"[{m.id} - {m.name} FAILED]: {m.error}")
+                lines.append(f"- **{m.name}** (`{m.id}`): ❌ **Failed**: {m.error}")
         return "\n".join(lines)
 
 
