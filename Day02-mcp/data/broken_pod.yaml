@@ -1,4 +1,18 @@
 apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: payment-service-config
+  namespace: default
+data:
+  database.json: |
+    {
+      "host": "postgres-service.default.svc.cluster.local",
+      "port": 5432,
+      "database": "payments",
+      "user": "payment_user"
+    }
+---
+apiVersion: v1
 kind: Pod
 metadata:
   name: payment-service
@@ -23,6 +37,10 @@ spec:
           fi
           echo "Connected successfully. Listening on port 8080."
           sleep 3600
+      volumeMounts:
+        - name: config-volume
+          mountPath: /etc/config
+          readOnly: true
       resources:
         limits:
           memory: "128Mi"
@@ -30,3 +48,7 @@ spec:
         requests:
           memory: "64Mi"
           cpu: "100m"
+  volumes:
+    - name: config-volume
+      configMap:
+        name: payment-service-config
