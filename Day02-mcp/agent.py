@@ -197,6 +197,14 @@ async def main():
                 if msg.tool_calls:
                     step_count += 1
 
+                    # Display any intermediate diagnostic observation from the model
+                    if msg.content and msg.content.strip():
+                        obs = msg.content.strip()
+                        if "<think>" in obs and "</think>" in obs:
+                            obs = obs.split("</think>")[-1].strip()
+                        if obs:
+                            console.print(f"\n[italic dim white]💡 {obs}[/italic dim white]")
+
                     # Record assistant message with tool calls
                     assistant_msg = {
                         "role": "assistant",
@@ -250,6 +258,28 @@ async def main():
 
                     # Filter residual regex artifacts
                     answer = re.sub(r"\*\([^\)]*\)\*", "", answer).strip()
+
+                    # Fallback synthesis pass if model produced empty text after tool execution
+                    if not answer.strip() and step_count > 0:
+                        try:
+                            synth_prompt = (
+                                "Based on the live tool and diagnostic outputs above, provide a clear, "
+                                "concise summary answering the user request, explaining the status and root causes."
+                            )
+                            synth_res = await client.chat.completions.create(
+                                model=model,
+                                messages=context_messages + [{"role": "user", "content": synth_prompt}],
+                                max_tokens=1500,
+                            )
+                            answer = synth_res.choices[0].message.content or ""
+                            if "<think>" in answer and "</think>" in answer:
+                                answer = answer.split("</think>")[-1].strip()
+                            answer = re.sub(r"\*\([^\)]*\)\*", "", answer).strip()
+                        except Exception as e:
+                            print(f"\033[93m[Synthesis fallback warning]: {e}\033[0m")
+
+                    if not answer.strip():
+                        answer = "Diagnostic operations completed. Please review the live command output above."
 
                     print()
                     console.print("[bold green]🤖 AI Assistant:[/bold green]")
