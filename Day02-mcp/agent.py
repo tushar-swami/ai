@@ -51,7 +51,12 @@ DEVOPS_SYSTEM_PROMPT = (
     "     a. `get_pr_failed_checks(pr_number)` to discover failing jobs and their IDs.\n"
     "     b. `get_failed_job_logs(job_id)` to extract the scrubbed failure stack trace.\n"
     "     c. `get_pr_diff(pr_number)` to examine the code changes introduced by the PR.\n"
-    "     d. Synthesize the root cause, identify the exact broken line in the PR diff, and output a copy-pasteable code fix in unified diff format."
+    "     d. Synthesize the root cause, identify the exact broken line in the PR diff, and output a copy-pasteable code fix in unified diff format.\n"
+    "   - When asked to fix the code, apply the patch, or raise/create a PR (e.g. 'can you fix it?'), dispatch `create_remediation_pr(...)`.\n"
+    "     CRITICAL SAFETY MANDATES:\n"
+    "     * NEVER write directly or commit to the `main` or `master` branch under any circumstances.\n"
+    "     * ALWAYS place fixes onto a new dedicated fix branch (e.g. `fix/pr-42-remediation`).\n"
+    "     * Raise an OPEN Pull Request for human review. NEVER auto-merge the PR to main."
 )
 
 
@@ -149,7 +154,8 @@ async def main():
             live_triggers = (
                 "pod", "pods", "node", "nodes", "cluster", "status", "summary", "health",
                 "check", "inspect", "list", "show", "log", "logs", "event", "events",
-                "time", "date", "password", "pr", "prs", "github", "pull", "ci", "failed", "fix"
+                "time", "date", "password", "pr", "prs", "github", "pull", "ci", "failed", "fix",
+                "patch", "raise", "create"
             )
             user_text_lower = user_input.lower()
             requires_live_data = any(re.search(r"\b" + re.escape(t) + r"\b", user_text_lower) for t in live_triggers)
