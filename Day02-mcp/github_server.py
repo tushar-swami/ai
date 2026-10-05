@@ -372,6 +372,8 @@ def create_remediation_pr(
     pr_title: str | None = None,
     pr_body: str | None = None,
     repo: str | None = None,
+    diff: str | None = None,
+    patch: str | None = None,
 ) -> str:
     """Safely apply fix on dedicated branch, verify tests, and open an unmerged PR."""
     pr_num = str(pr_number) if pr_number else "42"
