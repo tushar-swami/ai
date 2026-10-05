@@ -281,18 +281,47 @@ Dividing the mission into distinct milestones naturally enables a **Supervisor�
    - Updated `create_remediation_pr` schema in `github_server.py` to accept `description` and `fix_details` parameters, eliminating unexpected argument validation errors.
    - Strengthened `DEVOPS_SYSTEM_PROMPT` in `agent.py` to route Kubernetes cluster fixes to `kubectl_apply` rather than GitHub PR tools, enforcing strict error honesty.
 
+10. **Production GitOps Manifest PR Remediation Workflow (`k8s_server.py`, `github_server.py`, `orchestrator.py`, `agent.py`)**:
+    - **Architectural Shift (GitOps vs. In-Cluster Mutation)**: Direct cluster mutation (`kubectl apply`) causes configuration drift against source control and violates production auditability. Shifted incident remediation to a true GitOps PR workflow:
+      1. Pod crash diagnosed in cluster (`payment-service` CrashLoopBackOff due to missing `/etc/config/database.json`).
+      2. Source manifest discovered in workspace repository using `find_workload_manifest` (`Day02-mcp/data/broken_pod.yaml`).
+      3. Remediated multi-document manifest synthesized (companion `ConfigMap` + container `volumeMounts` & `volumes`).
+      4. Dedicated fix branch created (`fix/k8s-payment-service-configmap`).
+      5. Automated pre-commit test gate executed (`pytest tests/`, 100% pass).
+      6. Remediated YAML committed and unmerged Pull Request opened for human maintainer review.
+    - **Manifest Discovery Tool (`find_workload_manifest`)**:
+      - Scans repository workspaces (`*.yaml`, `*.yml`) excluding `.venv` and `.git`.
+      - Ranks matches using weighted scoring: metadata.name matches (+10), filename match (+5), data directory location (+2).
+      - Returns relative file path and existing YAML content.
+    - **Extensible PR Generator (`create_remediation_pr`)**:
+      - Added parameter `new_content: str | None` and aliases (`manifest`, `content`, `branch`, `path`, `target_file`, `title`, `body`).
+      - Writes complete YAML manifests directly to target paths on dedicated fix branches.
+      - Enforces strict safety rules: blocks writing or committing to `main` or `master`, never auto-merges, requires human review.
+    - **SRE Orchestrator Integration (`K8sDiagnosticFlightPlan`)**:
+      - Expanded `required_servers` to `["k8s", "github", "system"]`.
+      - Rewrote `M4_REMEDIATE` to execute the full GitOps workflow: locate repo YAML ➔ synthesize ConfigMap & volumeMount patch ➔ dispatch `create_remediation_pr` on `fix/k8s-{pod}-configmap`.
+      - Enhanced `generate_incident_report()` to output the dedicated branch, modified repo manifest path, automated test status, and direct 1-click PR review URL.
+    - **System Prompt Governance (`DEVOPS_SYSTEM_PROMPT`)**:
+      - Formalized the GitOps mandate for Kubernetes fixes: always inspect repository manifests and propose Pull Requests; never mutate clusters directly unless specifically commanded.
+
 ### Verification Execution Trace:
+- **GitOps PR Flight Plan Real Verification**: Tested with live `payment-service` CrashLoopBackOff pod on local cluster:
+  - `M1_DISCOVER`: Isolated degraded pod `payment-service`.
+  - `M2_DIAGNOSE`: Inspected pod events: `ExitCode: 1 (Application Error)`.
+  - `M3_ISOLATE`: Extracted crash logs: `FATAL ERROR: Configuration file '/etc/config/database.json' not found!`.
+  - `M4_REMEDIATE`: Dispatched `find_workload_manifest("payment-service")` ➔ Found `Day02-mcp/data/broken_pod.yaml`.
+  - Synthesized ConfigMap + Pod YAML patch.
+  - Checked out `fix/k8s-payment-service-configmap`.
+  - Pre-commit test gate: `pytest tests/` passed 10/10 (100%).
+  - Committed `196325f`: `fix(k8s): mount database.json ConfigMap for payment-service to resolve CrashLoopBackOff`.
+  - Pushed to `origin/fix/k8s-payment-service-configmap`.
+  - Generated direct 1-Click Pull Request URL with comprehensive description.
+  - Main branch was 100% untouched. Auto-merge remained strictly disabled.
+- **Automated Test Gate Verification**: 10 passed in 1.08s (`tests/test_gitops_remediation.py` + `tests/test_pricing.py`).
 - **Informational Query Verification**: `Show me the pod status and summary...` ➔ Matched `None`, cleanly routed to standard `kubectl_diagnose(action="get_pods")`.
 - **Clean Cluster Early-Exit Verification**: `Troubleshoot crashlooping pods in my cluster` (empty cluster) ➔ M1 completed with no errors, M2/M3/M4 marked `SKIPPED`, zero ghost pods diagnosed.
 - **K8s Plan Verification**: `Why is my broken pod crashing?` ➔ Matched `Kubernetes Pod Diagnostic`, executed M1 ➔ M4, isolated `CrashLoopBackOff` in `auth-service-broken`, completed 4/4 milestones with 100% pass.
-- **Live Local Kubernetes Cluster Real Incident Verification**: `Why is payment-service crashing?` (tested on live multi-node local cluster with real CrashLoopBackOff pod `payment-service`) ➔ Executed cleanly:
-  - Progress: Single-line real-time updates (`⚡ [1/4] ...` ➔ `✔ [1/4] ...`) without terminal clutter or multiple table reprints.
-  - `M1_DISCOVER`: Isolated degraded pod `payment-service` in `default` namespace.
-  - `M2_DIAGNOSE`: Inspected pod lifecycle events; extracted termination reason `ExitCode: 1 (Application Error)`.
-  - `M3_ISOLATE`: Extracted previous container crash logs; detected exact failure: `FATAL ERROR: Configuration file '/etc/config/database.json' not found!`.
-  - `M4_REMEDIATE`: Synthesized deployment manifest and ConfigMap patch remediation plan.
-  - Completion Dashboard: Rendered the Rich Flight Plan status table **exactly once** upon completion (100% completed).
-  - Incident Diagnosis & Remediation Report: Produced executive RCA briefing with verbatim crash logs, Action 1 (`ConfigMap` YAML creation), Action 2 (Deployment `volumeMounts` patch), and verification instructions.
+- **Live Local Kubernetes Cluster Real Incident Verification**: `Why is payment-service crashing?` (tested on live multi-node local cluster with real CrashLoopBackOff pod `payment-service`) ➔ Executed cleanly.
 - **GitHub Plan Verification**: `Triage and fix failing checks on PR #42` ➔ Matched `GitHub CI/CD Remediation`, scrubbed traceback, ran local `pytest` gate (100% pass), and generated safe feature branch PR.
 - **General Fallback Verification**: `What is the current time?` ➔ Matched `None`, cleanly fell back to standard ReAct loop.
 

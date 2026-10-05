@@ -34,9 +34,10 @@ In Day 01, tools were imported directly into the agent's Python process. In Day 
 │ • kubectl_diagnose      │ │ • read_file, list_files │ │ • list_prs              │
 │   (pods, nodes, logs,   │ │ • get_current_datetime  │ │ • get_pr_failed_checks  │
 │    events, describe)    │ │ • generate_password     │ │ • get_failed_job_logs   │
-│                         │ │ • roll_dice             │ │   (regex log scrubber)  │
-│                         │ │ • search_knowledge      │ │ • get_pr_diff           │
-│                         │ │                         │ │ • create_remediation_pr │
+│ • kubectl_apply         │ │ • roll_dice             │ │   (regex log scrubber)  │
+│ • find_workload_manifest│ │ • search_knowledge      │ │ • get_pr_diff           │
+│   (workspace repo YAML) │ │                         │ │ • create_remediation_pr │
+│                         │ │                         │ │   (GitOps manifest PR)  │
 └─────────────────────────┘ └─────────────────────────┘ └─────────────────────────┘
 ```
 
@@ -45,10 +46,11 @@ In Day 01, tools were imported directly into the agent's Python process. In Day 
 ## 🌟 Why MCP & SRE Flight Plans? (Key Architectural Advantages)
 
 1. **Pluggable Flight Plan Orchestrator**: Executes structured 4-phase incident resolutions (`DISCOVER` ➔ `DIAGNOSE` ➔ `ISOLATE` ➔ `REMEDIATE`) with live terminal dashboards.
-2. **Zero Blast-Radius & Fault Isolation**: External tools run in child processes. Failures over JSON-RPC are caught gracefully without terminating the agent.
-3. **Dynamic Tool Scoping**: Injects *only* the tools relevant to the active domain (e.g. K8s tools for clusters, GitHub tools for PRs), eliminating LLM hallucination and saving tokens.
-4. **Context Window Garbage Collection**: Prunes raw multi-thousand-line logs after each milestone, feeding only 1-line distilled artifact summaries forward.
-5. **Strict Git & Branch Governance**: Pre-commit automated test gate verification (`pytest tests/`), safe feature branching (`fix/pr-XX`), and **zero direct commits to `main`**.
+2. **Production GitOps PR Workflow**: Fixes for degraded workloads (`payment-service` CrashLoopBackOff) avoid direct in-cluster mutation. The agent scans the repository (`find_workload_manifest`), patches the source manifest (`Day02-mcp/data/broken_pod.yaml`), commits to an isolated fix branch (`fix/k8s-...`), and raises an unmerged Pull Request awaiting human review.
+3. **Zero Blast-Radius & Fault Isolation**: External tools run in child processes. Failures over JSON-RPC are caught gracefully without terminating the agent.
+4. **Dynamic Tool Scoping**: Injects *only* the tools relevant to the active domain (e.g. K8s + GitHub tools for cluster triage), eliminating LLM hallucination and saving tokens.
+5. **Context Window Garbage Collection**: Prunes raw multi-thousand-line logs after each milestone, feeding only 1-line distilled artifact summaries forward.
+6. **Strict Git & Branch Governance**: Pre-commit automated test gate verification (`pytest tests/`), safe feature branching (`fix/k8s-...`), and **zero direct commits to `main`**.
 
 ---
 

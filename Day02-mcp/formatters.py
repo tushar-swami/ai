@@ -464,6 +464,17 @@ def render_mcp_output(func_name: str, func_args: dict | str, output: str) -> Non
         print()
         return
 
+    if func_name == "find_workload_manifest":
+        console.print(
+            Panel(
+                output.strip() if len(output) < 1500 else output[:1500] + "\n... [truncated]",
+                title="🔍 [bold cyan]Source Manifest Located[/bold cyan]",
+                border_style="cyan",
+            )
+        )
+        print()
+        return
+
     # 2. System Utilities
     if func_name == "get_current_datetime":
         console.print(f"[bold green]🕒 Current Time:[/bold green] [bold white]{output.strip()}[/bold white]\n")

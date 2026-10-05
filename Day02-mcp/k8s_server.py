@@ -46,7 +46,9 @@ def find_kubectl() -> str:
 def kubectl_diagnose(
     action: str,
     pod_name: str | None = None,
+    pod: str | None = None,
     node_name: str | None = None,
+    node: str | None = None,
     namespace: str = "default",
     previous: bool = False,
     tail: int = 100,
@@ -63,7 +65,8 @@ def kubectl_diagnose(
     kubectl_bin = find_kubectl()
     ns = (namespace or "default").strip()
     is_all_ns = ns.lower() in ("all", "-a", "--all-namespaces", "*")
-    target_node = (node_name or pod_name or "").strip()
+    target_pod = (pod_name or pod or "").strip()
+    target_node = (node_name or node or target_pod).strip()
 
     # Node operations are cluster-scoped
     if action_clean == "get_nodes":
@@ -88,13 +91,13 @@ def kubectl_diagnose(
         if action_clean == "get_pods":
             cmd.extend(["get", "pods", "-o", "wide"])
         elif action_clean == "describe_pod":
-            if not pod_name or not str(pod_name).strip():
-                return "Error: 'pod_name' is required for action 'describe_pod'."
-            cmd.extend(["describe", "pod", str(pod_name).strip()])
+            if not target_pod:
+                return "Error: 'pod_name' (or 'pod') is required for action 'describe_pod'."
+            cmd.extend(["describe", "pod", target_pod])
         elif action_clean == "get_logs":
-            if not pod_name or not str(pod_name).strip():
-                return "Error: 'pod_name' is required for action 'get_logs'."
-            cmd.extend(["logs", str(pod_name).strip(), f"--tail={max(10, min(500, int(tail)))}"])
+            if not target_pod:
+                return "Error: 'pod_name' (or 'pod') is required for action 'get_logs'."
+            cmd.extend(["logs", target_pod, f"--tail={max(10, min(500, int(tail)))}"])
             if previous:
                 cmd.append("--previous")
         elif action_clean == "get_events":
@@ -155,7 +158,10 @@ def kubectl_diagnose(
     ),
 )
 def kubectl_apply(
-    yaml_content: str,
+    yaml_content: str | None = None,
+    manifest: str | None = None,
+    yaml: str | None = None,
+    content: str | None = None,
     namespace: str = "default",
 ) -> str:
     """Apply a YAML manifest to the Kubernetes cluster."""
@@ -163,9 +169,9 @@ def kubectl_apply(
     if not kubectl_bin:
         return "Error: kubectl binary not found."
 
-    clean_yaml = yaml_content.strip()
+    clean_yaml = (yaml_content or manifest or yaml or content or "").strip()
     if not clean_yaml:
-        return "Error: No YAML content provided to apply."
+        return "Error: No YAML content provided to apply (expected 'manifest' or 'yaml_content')."
 
     ns = namespace.strip() if namespace else "default"
     cmd = [kubectl_bin, "-n", ns, "apply", "-f", "-"]
@@ -190,6 +196,60 @@ def kubectl_apply(
         return "Error: kubectl apply timed out after 15 seconds."
     except Exception as e:
         return f"Error executing kubectl apply: {e}"
+
+
+@mcp.tool(
+    name="find_workload_manifest",
+    description=(
+        "Searches the repository workspace for Kubernetes YAML manifest files defining a specific workload "
+        "(by metadata.name, service name, or app label). Returns the relative file path and current YAML contents."
+    ),
+)
+def find_workload_manifest(
+    workload_name: str | None = None,
+    pod_name: str | None = None,
+    name: str | None = None,
+    target: str | None = None,
+) -> str:
+    """Find the source YAML manifest for a workload in the repository."""
+    search_target = (workload_name or pod_name or name or target or "").strip()
+    if not search_target:
+        return "Error: 'workload_name' is required to find manifest."
+
+    base_dir = Path(__file__).resolve().parent.parent
+    search_dirs = [base_dir / "Day02-mcp" / "data", base_dir / "Day02-mcp", base_dir]
+
+    candidates = []
+    seen_paths = set()
+    for d in search_dirs:
+        if not d.exists():
+            continue
+        for p in list(d.rglob("*.yaml")) + list(d.rglob("*.yml")):
+            if ".venv" in p.parts or ".git" in p.parts or p in seen_paths:
+                continue
+            seen_paths.add(p)
+            try:
+                txt = p.read_text(encoding="utf-8", errors="ignore")
+                if search_target in txt:
+                    # Score candidate: prefer exact metadata.name match or filename match
+                    score = 0
+                    if f"name: {search_target}" in txt or f"name: \"{search_target}\"" in txt:
+                        score += 10
+                    if search_target in p.name:
+                        score += 5
+                    if "data" in p.parts:
+                        score += 2
+                    candidates.append((score, p, txt))
+            except Exception:
+                continue
+
+    if not candidates:
+        return f"No YAML manifest found in repository matching workload '{search_target}'."
+
+    candidates.sort(key=lambda c: c[0], reverse=True)
+    _, best_file, best_content = candidates[0]
+    rel_path = str(best_file.relative_to(base_dir))
+    return f"=== Workload Manifest Found: {rel_path} ===\n\nFile Path: {rel_path}\n\nCurrent YAML Content:\n{best_content}"
 
 
 if __name__ == "__main__":

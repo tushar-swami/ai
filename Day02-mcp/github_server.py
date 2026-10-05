@@ -357,12 +357,21 @@ def get_pr_diff(pr_number: int, repo: str | None = None) -> str:
 def create_remediation_pr(
     pr_number: int | str = 42,
     branch_name: str | None = None,
+    branch: str | None = None,
     file_path: str | None = None,
+    target_file: str | None = None,
+    path: str | None = None,
     target_content: str | None = None,
     replacement_content: str | None = None,
+    new_content: str | None = None,
+    content: str | None = None,
+    manifest: str | None = None,
     commit_message: str | None = None,
+    commit_msg: str | None = None,
     pr_title: str | None = None,
+    title: str | None = None,
     pr_body: str | None = None,
+    body: str | None = None,
     repo: str | None = None,
     diff: str | None = None,
     patch: str | None = None,
@@ -373,12 +382,12 @@ def create_remediation_pr(
     pr_num = str(pr_number) if pr_number else "42"
 
     # Auto-infer defaults if not explicitly provided
-    clean_branch = (branch_name or f"fix/pr-{pr_num}-remediation").strip()
-    target_file = (file_path or "tests/test_pricing.py").strip()
-    commit_msg = (commit_message or f"fix: update test assertions for PR #{pr_num} discount changes").strip()
-    title = (pr_title or f"fix: update test assertions for PR #{pr_num}").strip()
+    clean_branch = (branch_name or branch or f"fix/pr-{pr_num}-remediation").strip()
+    target_file_path = (file_path or target_file or path or "tests/test_pricing.py").strip()
+    commit_msg = (commit_message or commit_msg or f"fix: update test assertions for PR #{pr_num} discount changes").strip()
+    title = (pr_title or title or f"fix: update test assertions for PR #{pr_num}").strip()
     
-    inferred_body = pr_body
+    inferred_body = pr_body or body
     if not inferred_body and (description or fix_details):
         inferred_body = (description or "").strip()
         if fix_details:
@@ -387,7 +396,7 @@ def create_remediation_pr(
     body = (
         inferred_body
         or f"Automated remediation PR generated for failed CI tasks on PR #{pr_num}.\n\n"
-           f"### Summary of Changes:\n- Synchronized unit test assertions in `{target_file}` with updated logic.\n\n"
+           f"### Summary of Changes:\n- Synchronized changes in `{target_file_path}`.\n\n"
            f"🛡️ Safety Mandate: This PR was created on an isolated fix branch and will NEVER be auto-merged to `main`. Awaiting maintainer review."
     ).strip()
 
@@ -434,19 +443,24 @@ def create_remediation_pr(
         return f"❌ Git branch operation failed: {e}"
 
     # ── Step 3: Apply Code Modification ──
-    abs_file = (BASE_PROJECT_DIR / target_file).resolve()
+    abs_file = (BASE_PROJECT_DIR / target_file_path).resolve()
     if not str(abs_file).startswith(str(BASE_PROJECT_DIR)):
-        return f"❌ Security Error: File path '{target_file}' traverses outside the project directory."
-    if not abs_file.exists():
-        return f"❌ File not found: '{target_file}'"
+        return f"❌ Security Error: File path '{target_file_path}' traverses outside the project directory."
 
-    original_text = abs_file.read_text(encoding="utf-8")
-    tgt = target_content or "assert discounted == 80.0"
-    rep = replacement_content or "assert discounted == 90.0"
+    full_new_content = new_content or content or manifest
+    if full_new_content is not None:
+        abs_file.parent.mkdir(parents=True, exist_ok=True)
+        abs_file.write_text(full_new_content.strip() + "\n", encoding="utf-8")
+    else:
+        if not abs_file.exists():
+            return f"❌ File not found: '{target_file_path}'"
+        original_text = abs_file.read_text(encoding="utf-8")
+        tgt = target_content or "assert discounted == 80.0"
+        rep = replacement_content or "assert discounted == 90.0"
 
-    if tgt in original_text:
-        patched_text = original_text.replace(tgt, rep, 1)
-        abs_file.write_text(patched_text, encoding="utf-8")
+        if tgt in original_text:
+            patched_text = original_text.replace(tgt, rep, 1)
+            abs_file.write_text(patched_text, encoding="utf-8")
 
     # ── Step 4: Automated Test Gate ──
     test_summary = "No pytest suite found"
@@ -531,7 +545,7 @@ def create_remediation_pr(
         f"═══════════════════════════════════════════════════════════════\n"
         f"• Active Fix Branch: {active_branch}\n"
         f"• Base Target:       main (PROTECTED: Never written directly)\n"
-        f"• Modified File:     {target_file}\n"
+        f"• Modified File:     {target_file_path}\n"
         f"• Test Gate:         {test_summary}\n"
         f"• Git Push:          {push_status}\n"
         f"• PR Status:         OPEN FOR HUMAN REVIEW (Auto-merge is DISABLED)\n\n"
