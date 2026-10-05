@@ -23,6 +23,7 @@ from rich.markdown import Markdown
 
 from mcp_client import MCPClientManager
 from formatters import render_mcp_output
+from orchestrator import OrchestratorEngine
 
 # Global rich console
 console = Console()
@@ -146,7 +147,18 @@ async def main():
             messages.append({"role": "user", "content": user_input})
             save_history()
 
-            # Autonomous Multi-Step Reasoning Loop (up to 5 autonomous investigation steps)
+            # 1. Attempt Flight Plan Orchestration (Phase-Gated SRE State Machine)
+            orchestrator = OrchestratorEngine(mcp_manager=mcp, llm_client=client, model=model)
+            plan_result = await orchestrator.run(user_input)
+
+            if plan_result:
+                # Flight Plan successfully completed all milestones!
+                messages.append({"role": "assistant", "content": plan_result.final_summary})
+                save_history()
+                print()
+                continue
+
+            # 2. Fallback to General Autonomous ReAct Loop if no specialized Flight Plan matched
             max_tool_steps = 5
             step_count = 0
 

@@ -275,7 +275,7 @@ def get_pr_failed_checks(pr_number: int, repo: str | None = None) -> str:
         "Extracts the critical failure window and traceback lines while filtering out thousands of lines of build noise."
     ),
 )
-def get_failed_job_logs(job_id: int | str, repo: str | None = None, max_lines: int = 60) -> str:
+def get_failed_job_logs(job_id: int | str, repo: str | None = None, pr_number: int | str | None = None, max_lines: int = 60) -> str:
     """Download job logs and return scrubbed failure traceback."""
     target_repo = (repo or "").strip() or get_default_repo()
 

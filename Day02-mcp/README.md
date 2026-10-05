@@ -1,20 +1,28 @@
 # 🚀 Day 02 — Model Context Protocol (MCP) Agent Framework
 
+> 📖 **Full Engineering Journey & Multi-Agent Roadmap**: See [`JOURNEY_AND_STAGES.md`](./JOURNEY_AND_STAGES.md) for the step-by-step evolution of how every stage was designed and achieved.
+
 This project builds an autonomous AI engineering assistant powered by **Model Context Protocol (MCP)**, completely separating tool execution from the agent's core brain.
 
 ---
 
 ## 🏛️ Architecture Overview
 
-In Day 01, tools were imported directly into the agent's Python process. In Day 02, tools run as **independent child processes** communicating over standard JSON-RPC 2.0 (`stdio`).
+In Day 01, tools were imported directly into the agent's Python process. In Day 02, tools run as **independent child processes** communicating over standard JSON-RPC 2.0 (`stdio`), orchestrated by an extensible **SRE Flight Plan State Machine**.
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
 │                        Agent Process (agent.py)                        │
 │                                                                        │
-│   User Prompt ──────────► Ollama LLM (gemma4:e4b)                      │
-│                                   │                                    │
-│                                   ▼ (Tool Call Request)                │
+│   User Prompt ──────────► OrchestratorEngine (orchestrator.py)         │
+│                                  │                                     │
+│                     ┌────────────┴────────────┐                        │
+│                     ▼                         ▼                        │
+│              [Flight Plan Match]     [Fallback General ReAct]          │
+│             M1 ➔ M2 ➔ M3 ➔ M4        Ollama LLM (gemma4:e4b)           │
+│                     │                         │                        │
+│                     └────────────┬────────────┘                        │
+│                                  ▼                                     │
 │                          MCPClientManager                              │
 └──────────────┬────────────────────┬────────────────────┬───────────────┘
                │ stdio JSON-RPC     │ stdio JSON-RPC     │ stdio JSON-RPC
@@ -28,19 +36,19 @@ In Day 01, tools were imported directly into the agent's Python process. In Day 
 │    events, describe)    │ │ • generate_password     │ │ • get_failed_job_logs   │
 │                         │ │ • roll_dice             │ │   (regex log scrubber)  │
 │                         │ │ • search_knowledge      │ │ • get_pr_diff           │
-│                         │ │                         │ │   (unified code patch)  │
+│                         │ │                         │ │ • create_remediation_pr │
 └─────────────────────────┘ └─────────────────────────┘ └─────────────────────────┘
 ```
 
 ---
 
-## 🌟 Why MCP? (Key Architectural Advantages)
+## 🌟 Why MCP & SRE Flight Plans? (Key Architectural Advantages)
 
-1. **Zero Blast-Radius & Fault Isolation**: If an external tool hangs on a network socket, hits a C-extension memory crash, or throws an unhandled exception, `agent.py` never crashes. The client catches the error and reports it cleanly to the LLM.
-2. **Multi-Server Microservices**: Tools are separated by domain into specialized micro-servers (`kubernetes`, `system`, and `github`), preventing monolith bloat.
-3. **Standardized Ecosystem**: Any MCP server (GitHub, PostgreSQL, Filesystem, Brave Search) can be added simply by listing it in `mcp_servers.json`.
-4. **Intelligent Context Scrubbing**: Massive raw CI logs (5,000+ lines) are scrubbed down to isolated ~50-line failure windows before hitting LLM context.
-5. **Parallel Execution**: Multiple tools requested in the same reasoning step run concurrently via `asyncio.gather()`.
+1. **Pluggable Flight Plan Orchestrator**: Executes structured 4-phase incident resolutions (`DISCOVER` ➔ `DIAGNOSE` ➔ `ISOLATE` ➔ `REMEDIATE`) with live terminal dashboards.
+2. **Zero Blast-Radius & Fault Isolation**: External tools run in child processes. Failures over JSON-RPC are caught gracefully without terminating the agent.
+3. **Dynamic Tool Scoping**: Injects *only* the tools relevant to the active domain (e.g. K8s tools for clusters, GitHub tools for PRs), eliminating LLM hallucination and saving tokens.
+4. **Context Window Garbage Collection**: Prunes raw multi-thousand-line logs after each milestone, feeding only 1-line distilled artifact summaries forward.
+5. **Strict Git & Branch Governance**: Pre-commit automated test gate verification (`pytest tests/`), safe feature branching (`fix/pr-XX`), and **zero direct commits to `main`**.
 
 ---
 
@@ -50,12 +58,14 @@ In Day 01, tools were imported directly into the agent's Python process. In Day 
 Day02-mcp/
 ├── .env                  # Ollama endpoint & model settings
 ├── mcp_servers.json      # Declarative MCP tri-server catalog (k8s, system, github)
+├── orchestrator.py       # SRE Flight Plan Orchestrator (GitHub CI & K8s plans)
 ├── k8s_server.py         # Subprocess 1: FastMCP server for Kubernetes diagnostics
 ├── system_server.py      # Subprocess 2: FastMCP server for files, datetime, & BM25 search
 ├── github_server.py      # Subprocess 3: FastMCP server for PR failure & CI log diagnostics
 ├── mcp_client.py         # Dynamic MCP client bridge (spawns servers & translates schemas)
-├── formatters.py         # Terminal Rich formatters for k8s, CI logs, diffs, and tables
+├── formatters.py         # Terminal Rich formatters, Flight Plan dashboards, & diff panels
 ├── agent.py              # Interactive DevOps assistant with autonomous multi-step reasoning
+├── JOURNEY_AND_STAGES.md # Living retrospective, stage tracker, and multi-agent roadmap
 ├── history.json          # Persistent conversation history
 ├── data/                 # Sample pod manifests and mock PR fixtures
 │   ├── sample_pr/        # Mock fixtures for PR #42 (checks.json, failed_test_log.txt, diff.patch)

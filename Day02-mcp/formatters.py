@@ -504,3 +504,52 @@ def render_mcp_output(func_name: str, func_args: dict | str, output: str) -> Non
     display_out = output if len(output) < 500 else output[:500] + "\n... [truncated for display]"
     console.print(Panel(display_out, title=f"Tool: {func_name}", border_style="dim"))
     print()
+
+
+def print_flight_plan_dashboard(
+    plan_name: str,
+    milestones: list,
+    current_milestone_id: str | None = None,
+    overall_status: str = "IN_PROGRESS",
+) -> None:
+    """Renders a Rich terminal dashboard showing active Flight Plan milestones and progress."""
+    table = Table(
+        title=f"✈️ SRE Flight Plan Dashboard: [bold cyan]{plan_name}[/bold cyan] ({overall_status})",
+        header_style="bold magenta",
+        border_style="cyan",
+        show_lines=True,
+    )
+    table.add_column("Milestone", style="bold cyan", width=16)
+    table.add_column("Phase & Objective", style="white", min_width=25)
+    table.add_column("Status", justify="center", width=16)
+    table.add_column("Key Finding / Distilled Artifact", style="dim white", min_width=35)
+
+    status_styles = {
+        "COMPLETED": "[bold green]✅ COMPLETED[/bold green]",
+        "IN_PROGRESS": "[bold yellow]⚡ ACTIVE[/bold yellow]",
+        "PENDING": "[dim white]⏳ PENDING[/dim white]",
+        "FAILED": "[bold red]❌ FAILED[/bold red]",
+        "SKIPPED": "[dim cyan]⏭️ SKIPPED[/dim cyan]",
+    }
+
+    for m in milestones:
+        # Handle dict or object attributes safely
+        mid = getattr(m, "id", None) if hasattr(m, "id") else (m.get("id", "") if isinstance(m, dict) else "")
+        name = getattr(m, "name", None) if hasattr(m, "name") else (m.get("name", "") if isinstance(m, dict) else "")
+        desc = getattr(m, "description", None) if hasattr(m, "description") else (m.get("description", "") if isinstance(m, dict) else "")
+        status = getattr(m, "status", None) if hasattr(m, "status") else (m.get("status", "PENDING") if isinstance(m, dict) else "PENDING")
+        if hasattr(status, "value"):
+            status_str = status.value
+        else:
+            status_str = str(status)
+        raw_summary = getattr(m, "summary", None) if hasattr(m, "summary") else (m.get("summary", "") if isinstance(m, dict) else "")
+        summary = raw_summary or "—"
+
+        status_display = status_styles.get(status_str, status_str)
+        phase_text = f"[bold]{name}[/bold]\n[dim]{desc}[/dim]"
+        table.add_row(mid, phase_text, status_display, summary)
+
+    console.print()
+    console.print(table)
+    console.print()
+
