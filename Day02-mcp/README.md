@@ -126,13 +126,16 @@ asyncio.run(test())
 
 ### 4. Interactive Autonomous In-Chat Prompts
 Launch `python agent.py` and test these scenarios:
-1. **GitHub CI/CD Failure Auto-Remediation**:
-   - *"Why did PR #42 fail and how do I fix it?"*
-   - Agent autonomously chains: `get_pr_failed_checks` ➔ `get_failed_job_logs` ➔ `get_pr_diff` ➔ synthesizes root cause & patch.
-2. **Kubernetes Cluster Health & Diagnostics**:
-   - *"Can you give summary of the pods"*
+1. **SRE Flight Plan: Kubernetes CrashLoop Incident Triage**:
+   - *"Why is my payment pod crashing in kubernetes?"*
+   - Flight Plan executes 4 discrete milestones: `M1_DISCOVER` ➔ `M2_DIAGNOSE` ➔ `M3_ISOLATE` ➔ `M4_REMEDIATE`.
+2. **SRE Flight Plan: GitHub CI/CD Auto-Remediation**:
+   - *"Triage and fix failing checks on PR #42"*
+   - Chained deterministic milestones: scrubbed logs ➔ diff correlation ➔ local `pytest` gate ➔ PR creation.
+3. **Informational Kubernetes Cluster Queries (Fast-Path ReAct)**:
+   - *"Show me the pod status and summary of all pods running in my kubernetes environment"*
    - *"Describe the nodes and check if there is memory pressure"*
-3. **Multi-Domain System Queries**:
+4. **Multi-Domain System Queries**:
    - *"What is the current time and can you roll an 8-sided die?"*
    - *"Search knowledge base for Mariana Trench and generate a 16-character password"*
 

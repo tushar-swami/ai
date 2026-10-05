@@ -266,10 +266,27 @@ Dividing the mission into distinct milestones naturally enables a **Supervisor�
    - **Intent Distinction**: Distinguishes purely informational queries (e.g., *"Show me pod status and summary"* or *"List open PRs"*) from true incident triage. Informational queries route to standard 1-step tool dispatch via ReAct rather than launching an unnecessary 4-phase remediation mission.
    - **Ghost Resource Elimination & Early Exit**: In `M1_DISCOVER`, if a cluster or PR has zero degraded resources or failures, the engine does not hallucinate fallback fixtures; it marks downstream milestones (`M2`, `M3`, `M4`) as `SKIPPED` and exits with a clean health report.
 
+7. **Synthesis Fallback Gate & Observation Streaming (`agent.py`)**:
+   - Small local LLMs (`gemma4:e4b`) occasionally return empty text when tool schemas are active after complex tool interactions. The agent implements an automatic synthesis fallback pass without tool definitions to guarantee a complete written briefing.
+   - Intermediate model reasoning/observations are surfaced (`💡 ...`) so human operators can follow execution thoughts in real time.
+
+8. **Terminal De-Noising & Automatic Executive Incident Reporting (`orchestrator.py` & `agent.py`)**:
+   - Eliminated repetitive re-rendering of the multi-row dashboard table on every single milestone (previously printed 5 times in a row).
+   - Replaced with clean, focused 1-line milestone progress indicators (`⚡ [1/4] ...` ➔ `✔ [1/4] ...`), rendering the final dashboard table **exactly once** upon completion.
+   - Replaced high-level bullet checklists with a dedicated `generate_incident_report()` pass delivering a full Incident Report directly answering the user: Root Cause Analysis, verbatim Crash Log Evidence, and copy-pasteable YAML / Code Remediation.
+
 ### Verification Execution Trace:
 - **Informational Query Verification**: `Show me the pod status and summary...` ➔ Matched `None`, cleanly routed to standard `kubectl_diagnose(action="get_pods")`.
 - **Clean Cluster Early-Exit Verification**: `Troubleshoot crashlooping pods in my cluster` (empty cluster) ➔ M1 completed with no errors, M2/M3/M4 marked `SKIPPED`, zero ghost pods diagnosed.
 - **K8s Plan Verification**: `Why is my broken pod crashing?` ➔ Matched `Kubernetes Pod Diagnostic`, executed M1 ➔ M4, isolated `CrashLoopBackOff` in `auth-service-broken`, completed 4/4 milestones with 100% pass.
+- **Live Local Kubernetes Cluster Real Incident Verification**: `Why is payment-service crashing?` (tested on live multi-node local cluster with real CrashLoopBackOff pod `payment-service`) ➔ Executed cleanly:
+  - Progress: Single-line real-time updates (`⚡ [1/4] ...` ➔ `✔ [1/4] ...`) without terminal clutter or multiple table reprints.
+  - `M1_DISCOVER`: Isolated degraded pod `payment-service` in `default` namespace.
+  - `M2_DIAGNOSE`: Inspected pod lifecycle events; extracted termination reason `ExitCode: 1 (Application Error)`.
+  - `M3_ISOLATE`: Extracted previous container crash logs; detected exact failure: `FATAL ERROR: Configuration file '/etc/config/database.json' not found!`.
+  - `M4_REMEDIATE`: Synthesized deployment manifest and ConfigMap patch remediation plan.
+  - Completion Dashboard: Rendered the Rich Flight Plan status table **exactly once** upon completion (100% completed).
+  - Incident Diagnosis & Remediation Report: Produced executive RCA briefing with verbatim crash logs, Action 1 (`ConfigMap` YAML creation), Action 2 (Deployment `volumeMounts` patch), and verification instructions.
 - **GitHub Plan Verification**: `Triage and fix failing checks on PR #42` ➔ Matched `GitHub CI/CD Remediation`, scrubbed traceback, ran local `pytest` gate (100% pass), and generated safe feature branch PR.
 - **General Fallback Verification**: `What is the current time?` ➔ Matched `None`, cleanly fell back to standard ReAct loop.
 
