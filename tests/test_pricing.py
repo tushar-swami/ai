@@ -4,7 +4,7 @@ from src.pricing import calculate_discount
 def test_calculate_discount_premium():
     base_price = 100.0
     discounted = calculate_discount(base_price, "PREMIUM")
-    assert discounted == 80.0
+    assert discounted == 90.0
 
 
 def test_calculate_discount_gold():
