@@ -84,9 +84,10 @@ def build_system_prompt() -> str:
     return DEVOPS_SYSTEM_PROMPT
 
 
-def get_clean_context(messages: list, max_messages: int = 12) -> list:
+def get_clean_context(messages: list, max_messages: int = 10) -> list:
     """
-    Ensure the chat context starts with the dynamic system prompt (including recent tasks)
+    Ensure the chat context starts with the dynamic system prompt (including recent tasks),
+    prunes excessive raw tool outputs from prior turns to protect the context budget,
     and slices recent messages starting cleanly on a 'user' message.
     """
     sys_prompt = build_system_prompt()
@@ -101,7 +102,21 @@ def get_clean_context(messages: list, max_messages: int = 12) -> list:
             if m.get("role") == "user":
                 slice_start = i
                 break
-    return [{"role": "system", "content": sys_prompt}] + valid_msgs[slice_start:]
+
+    sliced = valid_msgs[slice_start:]
+
+    # Scrub bulky historical tool outputs prior to the current user turn
+    cleaned = []
+    last_user_idx = max((i for i, m in enumerate(sliced) if m.get("role") == "user"), default=0)
+    for i, m in enumerate(sliced):
+        m_copy = dict(m)
+        if m_copy.get("role") == "tool" and i < last_user_idx:
+            content = m_copy.get("content", "")
+            if len(content) > 300:
+                m_copy["content"] = content[:300] + "\n... [prior diagnostic output condensed]"
+        cleaned.append(m_copy)
+
+    return [{"role": "system", "content": sys_prompt}] + cleaned
 
 
 async def main():
@@ -243,6 +258,7 @@ async def main():
                         tools=mcp.schemas if mcp.schemas else None,
                         tool_choice=tool_choice,
                         max_tokens=2048,
+                        extra_body={"options": {"num_ctx": 8192}},
                     )
                     if hasattr(res, "usage") and res.usage:
                         turn_prompt_tokens += res.usage.prompt_tokens
@@ -330,6 +346,7 @@ async def main():
                                 model=model,
                                 messages=context_messages + [{"role": "user", "content": synth_prompt}],
                                 max_tokens=1500,
+                                extra_body={"options": {"num_ctx": 8192}},
                             )
                             if hasattr(synth_res, "usage") and synth_res.usage:
                                 turn_prompt_tokens += synth_res.usage.prompt_tokens

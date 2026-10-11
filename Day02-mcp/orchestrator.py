@@ -358,6 +358,7 @@ Explain the fix applied on the remediation branch and how local tests passed.
                     messages=[{"role": "user", "content": synthesis_prompt}],
                     max_tokens=1500,
                     temperature=0.2,
+                    extra_body={"options": {"num_ctx": 8192}},
                 )
                 if hasattr(resp, "usage") and resp.usage:
                     self.context_state["token_usage"] = {
@@ -730,6 +731,7 @@ Provide the relevant error snippet from the container logs.
                     messages=[{"role": "user", "content": synthesis_prompt}],
                     max_tokens=1500,
                     temperature=0.2,
+                    extra_body={"options": {"num_ctx": 8192}},
                 )
                 if hasattr(resp, "usage") and resp.usage:
                     self.context_state["token_usage"] = {

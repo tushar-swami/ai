@@ -320,9 +320,11 @@ Dividing the mission into distinct milestones naturally enables a **Supervisorâ€
     - **Orchestrator Auto-Logging**: `OrchestratorEngine.run()` automatically records completed Flight Plans into `tasks_journal.db`.
     - **FastMCP Tool Integration (`system_server.py`)**: Exposes `list_past_tasks`, `search_past_tasks`, and `get_past_task_details` under the `system` server with Rich UI panel formatting in `formatters.py`.
 
-- [x] **Milestone 6: Real-Time Token Consumption Telemetry & Session Ledger**
+- [x] **Milestone 6: Real-Time Token Consumption Telemetry & Context Window Optimization**
   - **Ground Truth vs. Estimation**: Ground truth token metrics (`prompt_tokens`, `completion_tokens`, `total_tokens`) are retrieved directly from Ollama's native `/v1/chat/completions` API `res.usage` payload, eliminating heuristic estimators.
   - **Per-Turn Dynamic Breakdown**: In the ReAct loop and Flight Plan synthesizers, prompt tokens (system prompts, tool schemas, conversation history, user query) and completion tokens (model reasoning, tool calls, formatted answers) are tracked dynamically across multiple LLM steps.
+  - **Context Window Expansion (`num_ctx: 8192`)**: Expanded local Ollama inference context headroom from the default 4,096 to 8,192 tokens via `extra_body={"options": {"num_ctx": 8192}}`, eliminating mid-sentence answer cutoffs.
+  - **Historical Tool Context Scrubber (`get_clean_context`)**: Prunes verbose tool outputs from prior turns (>300 chars condensed) to reduce prompt bloat by 2,000+ tokens and accelerate inference on local hardware.
   - **Terminal De-noised UI**: Token consumption is rendered as a clean, low-contrast footer badge (`[dim cyan]ðŸ“Š [Tokens] Turn: X (Prompt: Y | Completion: Z across N calls) | Session Total: W[/dim cyan]`).
   - **Interactive `/tokens` Command**: Added `/tokens` CLI command in `agent.py` rendering a Rich panel summarizing cumulative session token economics.
   - **FlightPlan Integration**: `FlightPlanResult` dataclass enhanced with `prompt_tokens`, `completion_tokens`, and `total_tokens` fields, populated directly from orchestrator report synthesis.
