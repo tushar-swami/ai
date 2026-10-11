@@ -866,6 +866,35 @@ class OrchestratorEngine:
             model=self.model
         )
 
+        # Auto-record completed flight plan into persistent task journal
+        if success and all_done:
+            try:
+                from task_journal import task_journal
+                domain = "kubernetes" if "k8s" in plan.name.lower() or "pod" in plan.name.lower() else "github"
+                workload = plan.context_state.get("target_pod")
+                if not workload and "pr_number" in plan.context_state:
+                    workload = f"PR #{plan.context_state.get('pr_number')}"
+                workload = workload or plan.name
+
+                root_cause = plan.context_state.get("failure_reason") or (plan.milestones[1].summary if len(plan.milestones) > 1 else "")
+                actions = plan.milestones[-1].summary if plan.milestones else ""
+                outcome = f"Flight plan '{plan.name}' completed with pre-commit gate passed."
+                if "remediation_branch" in plan.context_state:
+                    outcome = f"GitOps PR raised on branch {plan.context_state.get('remediation_branch')}"
+
+                task_journal.record_task(
+                    domain=domain,
+                    user_query=prompt,
+                    target_workload=workload,
+                    root_cause=root_cause,
+                    actions_summary=actions,
+                    outcome=outcome,
+                    status="COMPLETED",
+                    details=plan.context_state,
+                )
+            except Exception as e:
+                logger.debug(f"Failed to auto-record task journal: {e}")
+
         return FlightPlanResult(
             plan_name=plan.name,
             success=success,

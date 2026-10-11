@@ -490,6 +490,26 @@ def render_mcp_output(func_name: str, func_args: dict | str, output: str) -> Non
         console.print(Panel(output.strip(), title="📚 Knowledge Base Search Results", border_style="cyan"))
         print()
         return
+    elif func_name in ("list_past_tasks", "search_past_tasks"):
+        console.print(
+            Panel(
+                output.strip(),
+                title="🧠 [bold magenta]Operational Task Memory Journal[/bold magenta]",
+                border_style="magenta",
+            )
+        )
+        print()
+        return
+    elif func_name == "get_past_task_details":
+        console.print(
+            Panel(
+                output.strip(),
+                title="📋 [bold cyan]Task Incident Details & Artifacts[/bold cyan]",
+                border_style="cyan",
+            )
+        )
+        print()
+        return
 
     # 3. GitHub Diagnostics
     if func_name == "list_prs":

@@ -7,6 +7,7 @@ Runs as an independent child process communicating via JSON-RPC 2.0 over standar
 
 from collections import Counter
 from datetime import datetime
+import json
 import math
 from pathlib import Path
 import re
@@ -279,6 +280,92 @@ def search_knowledge(query: str, top_k: int = 3) -> str:
         )
 
     return "\n".join(results)
+
+
+# ── 7. Task & Incident History Tools (Persistent Operational Memory) ──────────
+@mcp.tool(
+    name="list_past_tasks",
+    description=(
+        "List previously executed DevOps tasks, diagnostic investigations, and remediation actions "
+        "from the persistent operational task journal (SQLite ledger). "
+        "Supports filtering by domain ('kubernetes', 'github', 'system') and limit."
+    ),
+)
+def list_past_tasks(limit: int = 5, domain: str | None = None) -> str:
+    """List recent tasks in an agent-friendly, token-efficient format."""
+    try:
+        from task_journal import task_journal
+        tasks = task_journal.list_recent_tasks(limit=limit, domain=domain)
+        if not tasks:
+            return "No previous tasks recorded in the operational journal."
+
+        lines = [f"=== Operational Task Journal ({len(tasks)} recent entries) ==="]
+        for t in tasks:
+            lines.append(task_journal.format_agent_card(t))
+        return "\n\n".join(lines)
+    except Exception as e:
+        return f"Error retrieving task journal: {e}"
+
+
+@mcp.tool(
+    name="search_past_tasks",
+    description=(
+        "Search the persistent task journal for past incidents, error tracebacks, pod names, PR numbers, "
+        "or resolutions using hybrid lexical (SQLite FTS5) and semantic vector search."
+    ),
+)
+def search_past_tasks(query: str, limit: int = 5) -> str:
+    """Hybrid search across task history by keyword, pod name, or conceptual description."""
+    try:
+        from task_journal import task_journal
+        clean_q = (query or "").strip()
+        if not clean_q:
+            return "Error: Search query cannot be empty."
+
+        results = task_journal.search_tasks(clean_q, limit=limit)
+        if not results:
+            return f"No past tasks found matching '{clean_q}'."
+
+        lines = [f"=== Past Task Matches for: '{clean_q}' ({len(results)} found) ==="]
+        for t in results:
+            lines.append(task_journal.format_agent_card(t))
+        return "\n\n".join(lines)
+    except Exception as e:
+        return f"Error searching task journal: {e}"
+
+
+@mcp.tool(
+    name="get_past_task_details",
+    description=(
+        "Retrieve full verbatim diagnostic logs, manifest diffs, and git commits "
+        "for a specific past task ID (e.g. 'k8s-20261005-201430')."
+    ),
+)
+def get_past_task_details(task_id: str) -> str:
+    """Retrieve full details and unpruned diagnostic logs for a past task."""
+    try:
+        from task_journal import task_journal
+        tid = (task_id or "").strip()
+        if not tid:
+            return "Error: 'task_id' is required."
+
+        task = task_journal.get_task_by_id(tid)
+        if not task:
+            return f"No task found with ID '{tid}'."
+
+        card = task_journal.format_agent_card(task)
+        details = task.get("details", {})
+        details_formatted = json.dumps(details, indent=2, ensure_ascii=False) if details else "{}"
+
+        return (
+            f"=== Full Details for Task: {tid} ===\n\n"
+            f"{card}\n\n"
+            f"**Query**: {task.get('user_query')}\n"
+            f"**Detailed Diagnostic & Remediation Artifacts**:\n"
+            f"```json\n{details_formatted}\n```"
+        )
+    except Exception as e:
+        return f"Error retrieving task details: {e}"
 
 
 if __name__ == "__main__":

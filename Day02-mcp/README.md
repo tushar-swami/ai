@@ -36,8 +36,9 @@ In Day 01, tools were imported directly into the agent's Python process. In Day 
 │    events, describe)    │ │ • generate_password     │ │ • get_failed_job_logs   │
 │ • kubectl_apply         │ │ • roll_dice             │ │   (regex log scrubber)  │
 │ • find_workload_manifest│ │ • search_knowledge      │ │ • get_pr_diff           │
-│   (workspace repo YAML) │ │                         │ │ • create_remediation_pr │
-│                         │ │                         │ │   (GitOps manifest PR)  │
+│   (workspace repo YAML) │ │ • list_past_tasks       │ │ • create_remediation_pr │
+│                         │ │ • search_past_tasks     │ │   (GitOps manifest PR)  │
+│                         │ │ • get_past_task_details │ │                         │
 └─────────────────────────┘ └─────────────────────────┘ └─────────────────────────┘
 ```
 
@@ -47,10 +48,11 @@ In Day 01, tools were imported directly into the agent's Python process. In Day 
 
 1. **Pluggable Flight Plan Orchestrator**: Executes structured 4-phase incident resolutions (`DISCOVER` ➔ `DIAGNOSE` ➔ `ISOLATE` ➔ `REMEDIATE`) with live terminal dashboards.
 2. **Production GitOps PR Workflow**: Fixes for degraded workloads (`payment-service` CrashLoopBackOff) avoid direct in-cluster mutation. The agent scans the repository (`find_workload_manifest`), patches the source manifest (`Day02-mcp/data/broken_pod.yaml`), commits to an isolated fix branch (`fix/k8s-...`), and raises an unmerged Pull Request awaiting human review.
-3. **Zero Blast-Radius & Fault Isolation**: External tools run in child processes. Failures over JSON-RPC are caught gracefully without terminating the agent.
-4. **Dynamic Tool Scoping**: Injects *only* the tools relevant to the active domain (e.g. K8s + GitHub tools for cluster triage), eliminating LLM hallucination and saving tokens.
-5. **Context Window Garbage Collection**: Prunes raw multi-thousand-line logs after each milestone, feeding only 1-line distilled artifact summaries forward.
-6. **Strict Git & Branch Governance**: Pre-commit automated test gate verification (`pytest tests/`), safe feature branching (`fix/k8s-...`), and **zero direct commits to `main`**.
+3. **Operational Task Memory (SQLite + FTS5 + Local Ollama Vectors)**: Remembers past tasks, root causes, and resolutions across sessions without saving any credentials. Uses hybrid FTS5 BM25 lexical search and local Ollama (`nomic-embed-text`) vector search.
+4. **Zero Blast-Radius & Fault Isolation**: External tools run in child processes. Failures over JSON-RPC are caught gracefully without terminating the agent.
+5. **Dynamic Tool Scoping**: Injects *only* the tools relevant to the active domain (e.g. K8s + GitHub tools for cluster triage), eliminating LLM hallucination and saving tokens.
+6. **Context Window Garbage Collection**: Prunes raw multi-thousand-line logs after each milestone, feeding only 1-line distilled artifact summaries forward.
+7. **Strict Git & Branch Governance**: Pre-commit automated test gate verification (`pytest tests/`), safe feature branching (`fix/k8s-...`), and **zero direct commits to `main`**.
 
 ---
 
@@ -61,8 +63,9 @@ Day02-mcp/
 ├── .env                  # Ollama endpoint & model settings
 ├── mcp_servers.json      # Declarative MCP tri-server catalog (k8s, system, github)
 ├── orchestrator.py       # SRE Flight Plan Orchestrator (GitHub CI & K8s plans)
+├── task_journal.py       # SQLite + FTS5 + Local Ollama vector hybrid memory engine
 ├── k8s_server.py         # Subprocess 1: FastMCP server for Kubernetes diagnostics & apply remediation
-├── system_server.py      # Subprocess 2: FastMCP server for files, datetime, & BM25 search
+├── system_server.py      # Subprocess 2: FastMCP server for files, datetime, knowledge & task memory
 ├── github_server.py      # Subprocess 3: FastMCP server for PR failure & CI log diagnostics
 ├── mcp_client.py         # Dynamic MCP client bridge (spawns servers & translates schemas)
 ├── formatters.py         # Terminal Rich formatters, Flight Plan dashboards, & diff panels
@@ -70,6 +73,7 @@ Day02-mcp/
 ├── JOURNEY_AND_STAGES.md # Living retrospective, stage tracker, and multi-agent roadmap
 ├── history.json          # Persistent conversation history
 ├── data/                 # Sample pod manifests and mock PR fixtures
+│   ├── tasks_journal.db  # Persistent operational task memory ledger (git-ignored)
 │   ├── sample_pr/        # Mock fixtures for PR #42 (checks.json, failed_test_log.txt, diff.patch)
 │   ├── broken_pod.yaml
 │   └── ...

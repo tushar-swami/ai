@@ -304,20 +304,28 @@ Dividing the mission into distinct milestones naturally enables a **Supervisor�
     - **System Prompt Governance (`DEVOPS_SYSTEM_PROMPT`)**:
       - Formalized the GitOps mandate for Kubernetes fixes: always inspect repository manifests and propose Pull Requests; never mutate clusters directly unless specifically commanded.
 
+11. **Operational Task & Conversation Memory Engine (SQLite + FTS5 + Local Ollama Vector Hybrid Search)**:
+    - **Zero Credential Storage Mandate**: Enforced the strict requirement that credentials, tokens, and passwords are NEVER stored in agent files or databases. All authentication remains ambient on the user's Mac (`~/.kube/config`, Keychain, or terminal session).
+    - **Persistent Task Journal Engine (`task_journal.py`)**: Built a zero-external-dependency SQLite storage engine with:
+      - Relational table for indexed fields (`task_id`, `domain`, `target_workload`, `status`, `created_at`).
+      - FTS5 virtual table (`tasks_fts`) with automated SQL triggers for sub-millisecond lexical search and BM25 relevance ranking.
+      - Binary vector blob storage (`embedding BLOB`) powered by local Ollama `nomic-embed-text:latest` (768-float32 vectors).
+      - Reciprocal Rank Fusion (RRF) uniting exact keyword matches (pod names, exit codes, PR numbers) with semantic fuzzy queries (*"billing container failure"* ➔ `payment-service`).
+    - **Progressive Disclosure & Token Optimization**:
+      - Completely avoids dumping raw SQL rows or heavy JSON into the prompt.
+      - Translates database records into high-density Markdown Task Cards (~40–50 tokens).
+      - Tier 1: Ambient Context Card (3 most recent operations) injected directly into `DEVOPS_SYSTEM_PROMPT` (~120 tokens).
+      - Tier 2: `list_past_tasks(limit, domain)` returns an overview inventory table.
+      - Tier 3: `get_past_task_details(task_id)` unpacks full logs, diffs, and git commits on demand.
+    - **Orchestrator Auto-Logging**: `OrchestratorEngine.run()` automatically records completed Flight Plans into `tasks_journal.db`.
+    - **FastMCP Tool Integration (`system_server.py`)**: Exposes `list_past_tasks`, `search_past_tasks`, and `get_past_task_details` under the `system` server with Rich UI panel formatting in `formatters.py`.
+
 ### Verification Execution Trace:
-- **GitOps PR Flight Plan Real Verification**: Tested with live `payment-service` CrashLoopBackOff pod on local cluster:
-  - `M1_DISCOVER`: Isolated degraded pod `payment-service`.
-  - `M2_DIAGNOSE`: Inspected pod events: `ExitCode: 1 (Application Error)`.
-  - `M3_ISOLATE`: Extracted crash logs: `FATAL ERROR: Configuration file '/etc/config/database.json' not found!`.
-  - `M4_REMEDIATE`: Dispatched `find_workload_manifest("payment-service")` ➔ Found `Day02-mcp/data/broken_pod.yaml`.
-  - Synthesized ConfigMap + Pod YAML patch.
-  - Checked out `fix/k8s-payment-service-configmap`.
-  - Pre-commit test gate: `pytest tests/` passed 10/10 (100%).
-  - Committed `196325f`: `fix(k8s): mount database.json ConfigMap for payment-service to resolve CrashLoopBackOff`.
-  - Pushed to `origin/fix/k8s-payment-service-configmap`.
-  - Generated direct 1-Click Pull Request URL with comprehensive description.
-  - Main branch was 100% untouched. Auto-merge remained strictly disabled.
-- **Automated Test Gate Verification**: 10 passed in 1.08s (`tests/test_gitops_remediation.py` + `tests/test_pricing.py`).
+- **Task Journal Automated Test Suite**: 17/17 tests passed in 1.49s (`tests/test_task_journal.py`, `tests/test_gitops_remediation.py`, `tests/test_pricing.py`).
+- **Hybrid Search Verification**:
+  - Exact search: `search_past_tasks("payment-service")` ➔ 100% matched `k8s-20261005-201430` via FTS5.
+  - Semantic fuzzy search: `search_past_tasks("billing container failure")` ➔ 100% matched `payment-service` via vector cosine similarity.
+- **MCP Tool Execution**: Verified `list_past_tasks`, `search_past_tasks`, and `get_past_task_details` over FastMCP stdio.
 - **Informational Query Verification**: `Show me the pod status and summary...` ➔ Matched `None`, cleanly routed to standard `kubectl_diagnose(action="get_pods")`.
 - **Clean Cluster Early-Exit Verification**: `Troubleshoot crashlooping pods in my cluster` (empty cluster) ➔ M1 completed with no errors, M2/M3/M4 marked `SKIPPED`, zero ghost pods diagnosed.
 - **K8s Plan Verification**: `Why is my broken pod crashing?` ➔ Matched `Kubernetes Pod Diagnostic`, executed M1 ➔ M4, isolated `CrashLoopBackOff` in `auth-service-broken`, completed 4/4 milestones with 100% pass.

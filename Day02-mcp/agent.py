@@ -63,17 +63,34 @@ DEVOPS_SYSTEM_PROMPT = (
     "   - For GitHub repository CI/CD Pull Requests: Use `create_remediation_pr(...)`.\n"
     "   - Strict Git Governance & Safety: NEVER commit or push directly to `main`. Always open an unmerged PR awaiting human maintainer review.\n"
     "   - Strict Error Honesty: NEVER claim an action succeeded if a tool call returned an error or validation failure. "
-    "Always accurately report the tool output to the user."
+    "Always accurately report the tool output to the user.\n\n"
+    "7. Operational Memory & Past Task Recall:\n"
+    "   - When asked about past tasks, incidents, or fixes (e.g. 'what tasks have we performed in the past?', 'what was fixed for payment-service?', 'did we work on PR #42?'): "
+    "Refer to your Operational Memory & Recent Task Journal summary below. If more detail or search is needed, "
+    "autonomously dispatch `search_past_tasks(query=...)` or `list_past_tasks()` to retrieve past diagnoses, root causes, and PR links directly from the task journal."
 )
+
+
+def build_system_prompt() -> str:
+    """Dynamically append recent task memory journal card to the system prompt."""
+    try:
+        from task_journal import task_journal
+        summary_card = task_journal.format_prompt_summary(limit=3)
+        if summary_card:
+            return f"{DEVOPS_SYSTEM_PROMPT}\n{summary_card}"
+    except Exception:
+        pass
+    return DEVOPS_SYSTEM_PROMPT
 
 
 def get_clean_context(messages: list, max_messages: int = 12) -> list:
     """
-    Ensure the chat context starts with the system prompt and slices recent messages
-    starting cleanly on a 'user' message, preventing orphaned tool or assistant turns.
+    Ensure the chat context starts with the dynamic system prompt (including recent tasks)
+    and slices recent messages starting cleanly on a 'user' message.
     """
+    sys_prompt = build_system_prompt()
     if len(messages) <= 1:
-        return messages
+        return [{"role": "system", "content": sys_prompt}]
     valid_msgs = [m for m in messages[1:] if m.get("content") or m.get("tool_calls")]
     slice_start = max(0, len(valid_msgs) - max_messages)
     while slice_start < len(valid_msgs) and valid_msgs[slice_start].get("role") != "user":
@@ -83,7 +100,7 @@ def get_clean_context(messages: list, max_messages: int = 12) -> list:
             if m.get("role") == "user":
                 slice_start = i
                 break
-    return [messages[0]] + valid_msgs[slice_start:]
+    return [{"role": "system", "content": sys_prompt}] + valid_msgs[slice_start:]
 
 
 async def main():
@@ -175,7 +192,8 @@ async def main():
                 "pod", "pods", "node", "nodes", "cluster", "status", "summary", "health",
                 "check", "inspect", "list", "show", "log", "logs", "event", "events",
                 "time", "date", "password", "pr", "prs", "github", "pull", "ci", "failed", "fix",
-                "patch", "raise", "create"
+                "patch", "raise", "create", "task", "tasks", "history", "past", "journal", "remember",
+                "previous", "earlier", "incident", "incidents"
             )
             user_text_lower = user_input.lower()
             requires_live_data = any(re.search(r"\b" + re.escape(t) + r"\b", user_text_lower) for t in live_triggers)
