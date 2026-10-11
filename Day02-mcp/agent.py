@@ -20,6 +20,7 @@ from openai import AsyncOpenAI
 
 from rich.console import Console
 from rich.markdown import Markdown
+from rich.panel import Panel
 
 from mcp_client import MCPClientManager
 from formatters import render_mcp_output
@@ -144,8 +145,11 @@ async def main():
         print(" 🚀 DAY 02 — MODEL CONTEXT PROTOCOL (MCP) AGENT")
         print(f" Model:     {model} (via {base_url})")
         print(f" MCP Tools: {', '.join(mcp.tool_names) if mcp.tool_names else 'None'}")
-        print(" Commands:  /clear (reset memory), exit or quit")
+        print(" Commands:  /clear (reset memory), /tokens (token ledger), exit or quit")
         print("═" * 70 + "\n")
+
+        session_prompt_tokens = 0
+        session_completion_tokens = 0
 
         while True:
             try:
@@ -161,6 +165,21 @@ async def main():
                 print("Goodbye!")
                 break
 
+            if user_input.lower().startswith("/tokens"):
+                session_total = session_prompt_tokens + session_completion_tokens
+                console.print(Panel(
+                    f"[bold cyan]Token Consumption Metrics (Current Session)[/bold cyan]\n\n"
+                    f"  • [bold]Prompt Tokens (Input):[/bold]     {session_prompt_tokens:,}\n"
+                    f"  • [bold]Completion Tokens (Output):[/bold] {session_completion_tokens:,}\n"
+                    f"  • [bold]Total Session Tokens:[/bold]       {session_total:,}\n\n"
+                    f"[dim]Tracking engine: Native Ollama /v1/chat/completions ground truth[/dim]",
+                    title="📊 Session Token Ledger",
+                    border_style="cyan",
+                    expand=False,
+                ))
+                print()
+                continue
+
             if user_input.lower().startswith("/clear"):
                 messages = [{"role": "system", "content": DEVOPS_SYSTEM_PROMPT}]
                 save_history()
@@ -169,6 +188,10 @@ async def main():
 
             messages.append({"role": "user", "content": user_input})
             save_history()
+
+            turn_prompt_tokens = 0
+            turn_completion_tokens = 0
+            turn_llm_calls = 0
 
             # 1. Attempt Flight Plan Orchestration (Phase-Gated SRE State Machine)
             orchestrator = OrchestratorEngine(mcp_manager=mcp, llm_client=client, model=model)
@@ -180,6 +203,15 @@ async def main():
                 console.print(Markdown(plan_result.final_summary))
                 messages.append({"role": "assistant", "content": plan_result.final_summary})
                 save_history()
+                if plan_result.total_tokens > 0:
+                    session_prompt_tokens += plan_result.prompt_tokens
+                    session_completion_tokens += plan_result.completion_tokens
+                    session_total = session_prompt_tokens + session_completion_tokens
+                    console.print(
+                        f"\n[dim cyan]📊 [Tokens] Flight Plan Synthesis: {plan_result.total_tokens:,} "
+                        f"(Prompt: {plan_result.prompt_tokens:,} | Completion: {plan_result.completion_tokens:,}) "
+                        f"| Session Total: {session_total:,}[/dim cyan]"
+                    )
                 print()
                 continue
 
@@ -212,6 +244,10 @@ async def main():
                         tool_choice=tool_choice,
                         max_tokens=2048,
                     )
+                    if hasattr(res, "usage") and res.usage:
+                        turn_prompt_tokens += res.usage.prompt_tokens
+                        turn_completion_tokens += res.usage.completion_tokens
+                        turn_llm_calls += 1
                     msg = res.choices[0].message
                 except Exception as e:
                     print(f"\n\033[91mError querying LLM: {e}\033[0m\n")
@@ -295,6 +331,10 @@ async def main():
                                 messages=context_messages + [{"role": "user", "content": synth_prompt}],
                                 max_tokens=1500,
                             )
+                            if hasattr(synth_res, "usage") and synth_res.usage:
+                                turn_prompt_tokens += synth_res.usage.prompt_tokens
+                                turn_completion_tokens += synth_res.usage.completion_tokens
+                                turn_llm_calls += 1
                             answer = synth_res.choices[0].message.content or ""
                             if "<think>" in answer and "</think>" in answer:
                                 answer = answer.split("</think>")[-1].strip()
@@ -308,9 +348,22 @@ async def main():
                     print()
                     console.print("[bold green]🤖 AI Assistant:[/bold green]")
                     console.print(Markdown(answer))
-                    print()
                     messages.append({"role": "assistant", "content": answer})
                     save_history()
+
+                    turn_total = turn_prompt_tokens + turn_completion_tokens
+                    session_prompt_tokens += turn_prompt_tokens
+                    session_completion_tokens += turn_completion_tokens
+                    session_total = session_prompt_tokens + session_completion_tokens
+
+                    if turn_total > 0:
+                        calls_str = f" across {turn_llm_calls} call{'s' if turn_llm_calls != 1 else ''}" if turn_llm_calls > 1 else ""
+                        console.print(
+                            f"\n[dim cyan]📊 [Tokens] Turn: {turn_total:,} "
+                            f"(Prompt: {turn_prompt_tokens:,} | Completion: {turn_completion_tokens:,}{calls_str}) "
+                            f"| Session Total: {session_total:,}[/dim cyan]"
+                        )
+                    print()
                     break
 
 

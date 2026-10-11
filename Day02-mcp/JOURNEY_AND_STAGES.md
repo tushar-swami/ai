@@ -320,7 +320,17 @@ Dividing the mission into distinct milestones naturally enables a **Supervisorâ€
     - **Orchestrator Auto-Logging**: `OrchestratorEngine.run()` automatically records completed Flight Plans into `tasks_journal.db`.
     - **FastMCP Tool Integration (`system_server.py`)**: Exposes `list_past_tasks`, `search_past_tasks`, and `get_past_task_details` under the `system` server with Rich UI panel formatting in `formatters.py`.
 
+- [x] **Milestone 6: Real-Time Token Consumption Telemetry & Session Ledger**
+  - **Ground Truth vs. Estimation**: Ground truth token metrics (`prompt_tokens`, `completion_tokens`, `total_tokens`) are retrieved directly from Ollama's native `/v1/chat/completions` API `res.usage` payload, eliminating heuristic estimators.
+  - **Per-Turn Dynamic Breakdown**: In the ReAct loop and Flight Plan synthesizers, prompt tokens (system prompts, tool schemas, conversation history, user query) and completion tokens (model reasoning, tool calls, formatted answers) are tracked dynamically across multiple LLM steps.
+  - **Terminal De-noised UI**: Token consumption is rendered as a clean, low-contrast footer badge (`[dim cyan]ðŸ“Š [Tokens] Turn: X (Prompt: Y | Completion: Z across N calls) | Session Total: W[/dim cyan]`).
+  - **Interactive `/tokens` Command**: Added `/tokens` CLI command in `agent.py` rendering a Rich panel summarizing cumulative session token economics.
+  - **FlightPlan Integration**: `FlightPlanResult` dataclass enhanced with `prompt_tokens`, `completion_tokens`, and `total_tokens` fields, populated directly from orchestrator report synthesis.
+
 ### Verification Execution Trace:
+- **Token Metrics Automated Test Suite**: 19/19 tests passed in 18.88s (`tests/test_token_metrics.py`, `tests/test_task_journal.py`, `tests/test_gitops_remediation.py`, `tests/test_pricing.py`).
+- **Live Token Reporting Verification**: Verified native Ollama token counts on `gemma4:e4b` for single completions, tool schema calls, and multi-turn ReAct chains.
+- **Session Ledger Panel Verification**: Tested `/tokens` panel render with Rich.
 - **Task Journal Automated Test Suite**: 17/17 tests passed in 1.49s (`tests/test_task_journal.py`, `tests/test_gitops_remediation.py`, `tests/test_pricing.py`).
 - **Hybrid Search Verification**:
   - Exact search: `search_past_tasks("payment-service")` âž” 100% matched `k8s-20261005-201430` via FTS5.
@@ -354,6 +364,8 @@ Dividing the mission into distinct milestones naturally enables a **Supervisorâ€
   - At the completion of each milestone, compress raw tool JSON outputs into a condensed summary card for the next phase.
 - [x] **Step 1.5: End-to-End Verification**
   - Tested against K8s cluster triage and GitHub CI triage; verified 100% test pass and zero `main` branch contamination.
+- [x] **Step 1.6: Token Consumption Telemetry & Session Ledger**
+  - Captured per-step and per-turn input/output tokens directly from Ollama `res.usage`.
 
 ---
 
@@ -371,3 +383,4 @@ Dividing the mission into distinct milestones naturally enables a **Supervisorâ€
 ---
 
 *This document is continuously updated upon the completion of each implementation milestone.*
+

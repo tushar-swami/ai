@@ -85,6 +85,9 @@ class FlightPlanResult:
     final_summary: str
     artifacts: Dict[str, Any] = field(default_factory=dict)
     elapsed_seconds: float = 0.0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
 
 
 class BaseFlightPlan(ABC):
@@ -356,6 +359,12 @@ Explain the fix applied on the remediation branch and how local tests passed.
                     max_tokens=1500,
                     temperature=0.2,
                 )
+                if hasattr(resp, "usage") and resp.usage:
+                    self.context_state["token_usage"] = {
+                        "prompt_tokens": resp.usage.prompt_tokens,
+                        "completion_tokens": resp.usage.completion_tokens,
+                        "total_tokens": resp.usage.total_tokens,
+                    }
                 content = resp.choices[0].message.content or ""
                 if "<think>" in content and "</think>" in content:
                     content = content.split("</think>")[-1].strip()
@@ -722,6 +731,12 @@ Provide the relevant error snippet from the container logs.
                     max_tokens=1500,
                     temperature=0.2,
                 )
+                if hasattr(resp, "usage") and resp.usage:
+                    self.context_state["token_usage"] = {
+                        "prompt_tokens": resp.usage.prompt_tokens,
+                        "completion_tokens": resp.usage.completion_tokens,
+                        "total_tokens": resp.usage.total_tokens,
+                    }
                 content = resp.choices[0].message.content or ""
                 if "<think>" in content and "</think>" in content:
                     content = content.split("</think>")[-1].strip()
@@ -895,6 +910,11 @@ class OrchestratorEngine:
             except Exception as e:
                 logger.debug(f"Failed to auto-record task journal: {e}")
 
+        token_usage = plan.context_state.get("token_usage", {})
+        prompt_tokens = token_usage.get("prompt_tokens", 0)
+        completion_tokens = token_usage.get("completion_tokens", 0)
+        total_tokens = token_usage.get("total_tokens", 0)
+
         return FlightPlanResult(
             plan_name=plan.name,
             success=success,
@@ -902,4 +922,7 @@ class OrchestratorEngine:
             final_summary=incident_report,
             artifacts=plan.context_state,
             elapsed_seconds=elapsed,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
         )
