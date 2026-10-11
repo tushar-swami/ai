@@ -596,3 +596,55 @@ def print_flight_plan_dashboard(
     console.print(table)
     console.print()
 
+
+def format_tools_catalog(tool_names: list[str] | None = None) -> None:
+    """Render an authoritative, un-hallucinated catalog of all loaded MCP tools."""
+    table = Table(
+        title="🛠️ Loaded Model Context Protocol (MCP) Tools Catalog",
+        border_style="cyan",
+        header_style="bold magenta",
+    )
+    table.add_column("Category / Domain", style="bold yellow", width=22)
+    table.add_column("Tool Name", style="bold green", width=26)
+    table.add_column("Description", style="white")
+
+    catalog_data = [
+        ("☸ Kubernetes Runtime", [
+            ("kubectl_diagnose", "Read-only cluster inspection (pods, nodes, logs, events, describe)"),
+            ("kubectl_apply", "Controlled manifest deployment / emergency cluster hotfix"),
+            ("find_workload_manifest", "Locates source YAML manifest in repository for a workload"),
+        ]),
+        ("🐙 GitHub CI/CD", [
+            ("list_prs", "Lists open and closed Pull Requests in repository"),
+            ("get_pr_failed_checks", "Pinpoints failing CI check run IDs for a Pull Request"),
+            ("get_failed_job_logs", "Extracts and scrubs CI failure tracebacks and errors"),
+            ("get_pr_diff", "Retrieves unified diff of PR code changes"),
+            ("create_remediation_pr", "Opens unmerged GitOps fix PR on a dedicated branch"),
+        ]),
+        ("🧠 Memory & Journal", [
+            ("search_past_tasks", "Hybrid FTS5 + vector semantic search over past incidents"),
+            ("list_past_tasks", "Chronological index of past completed operational tasks"),
+            ("get_past_task_details", "Deep-dive details and resolution logs for an incident"),
+        ]),
+        ("⚙️ System & Workspace", [
+            ("get_current_datetime", "Returns current system date and UTC time"),
+            ("generate_password", "Generates secure cryptographically strong passwords"),
+            ("roll_dice", "Rolls an N-sided die for probabilistic decisions"),
+            ("search_knowledge", "Searches local knowledge base markdown documents"),
+            ("list_files", "Lists repository files and directory structures"),
+            ("read_file", "Safely reads contents of workspace files"),
+        ]),
+    ]
+
+    for section_idx, (cat_name, tools) in enumerate(catalog_data):
+        if section_idx > 0:
+            table.add_section()
+        for i, (t_name, desc) in enumerate(tools):
+            cat_label = cat_name if i == 0 else ""
+            table.add_row(cat_label, t_name, desc)
+
+    console.print()
+    console.print(table)
+    console.print()
+
+

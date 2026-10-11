@@ -329,7 +329,13 @@ Dividing the mission into distinct milestones naturally enables a **Supervisorâ€
   - **Interactive `/tokens` Command**: Added `/tokens` CLI command in `agent.py` rendering a Rich panel summarizing cumulative session token economics.
   - **FlightPlan Integration**: `FlightPlanResult` dataclass enhanced with `prompt_tokens`, `completion_tokens`, and `total_tokens` fields, populated directly from orchestrator report synthesis.
 
+- [x] **Milestone 7: Anti-Hallucination Guardrails & Tool Catalog Fast-Path**
+  - **Tool Catalog Fast-Path (`/tools`)**: Implemented deterministic intent interception for tool listing queries (`"what tools do you support"`, `"/tools"`) rendering all 17 MCP tools categorized by domain in a Rich table directly from python, consuming 0 tokens and preventing hallucination.
+  - **Strict Tool Naming Directive (Rule 8)**: Added explicit anti-hallucination constraint in `DEVOPS_SYSTEM_PROMPT` forbidding invented prefixes (e.g., `NVIDIA_`, `Google_`).
+  - **Post-Processing Regex Scrubbing**: Defense-in-depth filter in `agent.py` automatically scrubs phantom vendor prefixes (`\b(?:NVIDIA_|Google_|OpenAI_)(?=[a-zA-Z0-9_]+)`) from any generated output text before rendering.
+
 ### Verification Execution Trace:
+- **Anti-Hallucination & Tool Catalog Test Suite**: 21/21 tests passed in 2.07s (`tests/test_token_metrics.py`, `tests/test_task_journal.py`, `tests/test_gitops_remediation.py`, `tests/test_pricing.py`).
 - **Token Metrics Automated Test Suite**: 19/19 tests passed in 18.88s (`tests/test_token_metrics.py`, `tests/test_task_journal.py`, `tests/test_gitops_remediation.py`, `tests/test_pricing.py`).
 - **Live Token Reporting Verification**: Verified native Ollama token counts on `gemma4:e4b` for single completions, tool schema calls, and multi-turn ReAct chains.
 - **Session Ledger Panel Verification**: Tested `/tokens` panel render with Rich.

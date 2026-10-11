@@ -23,7 +23,7 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 
 from mcp_client import MCPClientManager
-from formatters import render_mcp_output
+from formatters import render_mcp_output, format_tools_catalog
 from orchestrator import OrchestratorEngine
 
 # Global rich console
@@ -68,7 +68,9 @@ DEVOPS_SYSTEM_PROMPT = (
     "7. Operational Memory & Past Task Recall:\n"
     "   - When asked about past tasks, incidents, or fixes (e.g. 'what tasks have we performed in the past?', 'what was fixed for payment-service?', 'did we work on PR #42?'): "
     "Refer to your Operational Memory & Recent Task Journal summary below. If more detail or search is needed, "
-    "autonomously dispatch `search_past_tasks(query=...)` or `list_past_tasks()` to retrieve past diagnoses, root causes, and PR links directly from the task journal."
+    "autonomously dispatch `search_past_tasks(query=...)` or `list_past_tasks()` to retrieve past diagnoses, root causes, and PR links directly from the task journal.\n\n"
+    "8. Strict Tool Naming Integrity: NEVER invent, mutate, or prefix tool names (e.g. NEVER prepend 'NVIDIA_', 'Google_', or company names). "
+    "Refer to tools strictly and literally as declared in your MCP tool catalog. When asked what tools you support, mention all loaded tool capabilities truthfully."
 )
 
 
@@ -160,7 +162,7 @@ async def main():
         print(" 🚀 DAY 02 — MODEL CONTEXT PROTOCOL (MCP) AGENT")
         print(f" Model:     {model} (via {base_url})")
         print(f" MCP Tools: {', '.join(mcp.tool_names) if mcp.tool_names else 'None'}")
-        print(" Commands:  /clear (reset memory), /tokens (token ledger), exit or quit")
+        print(" Commands:  /clear (reset memory), /tokens (token ledger), /tools (tool catalog), exit or quit")
         print("═" * 70 + "\n")
 
         session_prompt_tokens = 0
@@ -193,6 +195,20 @@ async def main():
                     expand=False,
                 ))
                 print()
+                continue
+
+            if user_input.lower().strip() in ("/tools", "tools") or any(
+                p in user_input.lower()
+                for p in [
+                    "what tools do you support",
+                    "what all tools",
+                    "list your tools",
+                    "show your tools",
+                    "what tools are available",
+                    "which tools do you have",
+                ]
+            ):
+                format_tools_catalog(mcp.tool_names)
                 continue
 
             if user_input.lower().startswith("/clear"):
@@ -332,8 +348,9 @@ async def main():
                     if "<think>" in answer and "</think>" in answer:
                         answer = answer.split("</think>")[-1].strip()
 
-                    # Filter residual regex artifacts
-                    answer = re.sub(r"\*\([^\)]*\)\*", "", answer).strip()
+                    # Filter residual regex artifacts and hallucinated vendor prefixes
+                    answer = re.sub(r"\*\([^\)]*\)\*", "", answer)
+                    answer = re.sub(r"\b(?:NVIDIA_|Google_|OpenAI_)(?=[a-zA-Z0-9_]+)", "", answer).strip()
 
                     # Fallback synthesis pass if model produced empty text after tool execution
                     if not answer.strip() and step_count > 0:
@@ -355,7 +372,8 @@ async def main():
                             answer = synth_res.choices[0].message.content or ""
                             if "<think>" in answer and "</think>" in answer:
                                 answer = answer.split("</think>")[-1].strip()
-                            answer = re.sub(r"\*\([^\)]*\)\*", "", answer).strip()
+                            answer = re.sub(r"\*\([^\)]*\)\*", "", answer)
+                            answer = re.sub(r"\b(?:NVIDIA_|Google_|OpenAI_)(?=[a-zA-Z0-9_]+)", "", answer).strip()
                         except Exception as e:
                             print(f"\033[93m[Synthesis fallback warning]: {e}\033[0m")
 

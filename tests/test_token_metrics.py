@@ -38,3 +38,22 @@ def test_flight_plan_result_custom_tokens():
     assert res.prompt_tokens == 1050
     assert res.completion_tokens == 220
     assert res.total_tokens == 1270
+
+
+def test_format_tools_catalog():
+    """Verify format_tools_catalog executes cleanly."""
+    from formatters import format_tools_catalog
+    # Should run with None or explicit tool list without exceptions
+    format_tools_catalog(None)
+
+
+def test_anti_hallucination_vendor_prefix_scrubber():
+    """Verify regex scrubber strips phantom vendor prefixes from tool names."""
+    import re
+    dirty_text = "I will use NVIDIA_kubectl_diagnose and Google_list_prs with OpenAI_search_past_tasks."
+    clean_text = re.sub(r"\b(?:NVIDIA_|Google_|OpenAI_)(?=[a-zA-Z0-9_]+)", "", dirty_text)
+    assert "NVIDIA_" not in clean_text
+    assert "Google_" not in clean_text
+    assert "OpenAI_" not in clean_text
+    assert clean_text == "I will use kubectl_diagnose and list_prs with search_past_tasks."
+

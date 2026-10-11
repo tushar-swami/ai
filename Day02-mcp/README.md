@@ -99,6 +99,7 @@ python agent.py
 - Available in-chat commands:
   - `/clear` — Reset conversation history
   - `/tokens` — View cumulative session token consumption ledger
+  - `/tools` — View authoritative un-hallucinated MCP tool catalog (zero-token fast path)
   - `exit` or `quit` — Leave session
 
 ### 2. Test the FastMCP Server Standalone
